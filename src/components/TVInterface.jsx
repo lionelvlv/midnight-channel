@@ -483,15 +483,22 @@ export function TVInterface() {
       } catch {}
     }
 
-    // Archive / Dailymotion iframes — no JS API; swap src to effectively pause
-    // (removing src stops playback; restoring resumes from start — best we can do cross-origin)
+    // Archive / Dailymotion — no postMessage API; swap src directly on the DOM node.
+    // We must NOT touch React videoSrc state here (that would retrigger the src effect).
+    // Instead we read/write iframe.src imperatively and cache the paused src ourselves.
     if ((videoSource === 'archive' || videoSource === 'dailymotion') && iframeRef.current) {
       if (!next) {
-        iframeRef.current.dataset.pausedSrc = iframeRef.current.src
+        // Save current live src before blanking
+        const liveSrc = iframeRef.current.src
+        if (liveSrc && liveSrc !== 'about:blank') {
+          iframeRef.current.dataset.pausedSrc = liveSrc
+        }
         iframeRef.current.src = 'about:blank'
       } else {
         const saved = iframeRef.current.dataset.pausedSrc
-        if (saved) iframeRef.current.src = saved
+        if (saved && saved !== 'about:blank') {
+          iframeRef.current.src = saved
+        }
       }
     }
   }
@@ -607,12 +614,27 @@ export function TVInterface() {
     switchingRef.current = false; setIsSwitching(false)
   }, [goNext, goPrev, checkAnomaly]) // eslint-disable-line
 
+  // Drive the single iframe's src imperatively — replaces key={videoSrc} remounting.
+  // This keeps the DOM node alive so Dailymotion/YouTube cleanup handlers can fire safely,
+  // preventing the "Cannot read properties of null (reading 'contains')" crash.
   useEffect(() => {
-    if (!videoSrc) return
+    const iframe = iframeRef.current
+    if (!iframe) return
+    if (!videoSrc) {
+      // Blank it out after a tick so the old player can run its own teardown first
+      const t = setTimeout(() => { if (iframeRef.current) iframeRef.current.src = 'about:blank' }, 80)
+      return () => clearTimeout(t)
+    }
+    // Brief delay lets React commit className change (yt vs non-yt) before player loads
     const t = setTimeout(() => {
-      // Iframe sources (YouTube postMessage volume)
-      if (iframeRef.current) setIframeVolume(iframeRef.current, volumeRef.current)
-    }, 400)
+      if (iframeRef.current) {
+        iframeRef.current.src = videoSrc
+        // Re-apply volume once the new src starts loading
+        setTimeout(() => {
+          if (iframeRef.current) setIframeVolume(iframeRef.current, volumeRef.current)
+        }, 400)
+      }
+    }, 30)
     return () => clearTimeout(t)
   }, [videoSrc])
 
@@ -998,29 +1020,20 @@ export function TVInterface() {
               <div className="tv-bezel">
                 <div className={`tv-screen${screenWarped ? ' crt-warped' : ''}`}>
 
+                  {/* Single stable iframe — src set imperatively via useEffect to avoid
+                      unmount/remount cycles that null the ref while Dailymotion /
+                      YouTube internal JS still has queued callbacks (.contains crash) */}
+                  <iframe
+                    ref={iframeRef}
+                    className={`tv-iframe${videoSource === 'youtube' ? ' tv-iframe-yt' : ''}`}
+                    allow="autoplay; encrypted-media"
+                    allowFullScreen
+                    title="Night Channel"
+                    style={{ display: videoSrc ? 'block' : 'none' }}
+                  />
+                  {/* Transparent overlay — blocks YT pointer events so their UI never shows */}
                   {videoSrc && videoSource === 'youtube' && (
-                    <>
-                      <iframe
-                        ref={iframeRef} key={videoSrc}
-                        className="tv-iframe tv-iframe-yt"
-                        src={videoSrc}
-                        allow="autoplay; encrypted-media" allowFullScreen
-                        title="Night Channel"
-                      />
-                      {/* Transparent overlay catches pointer events so YT UI never appears */}
-                      <div className="yt-ui-blocker" onClick={() => handleSwitch('next')} />
-                    </>
-                  )}
-
-
-                  {videoSrc && (videoSource === 'archive' || videoSource === 'dailymotion') && (
-                    <iframe
-                      ref={iframeRef} key={videoSrc}
-                      className="tv-iframe"
-                      src={videoSrc}
-                      allow="autoplay; encrypted-media" allowFullScreen
-                      title="Night Channel"
-                    />
+                    <div className="yt-ui-blocker" onClick={() => handleSwitch('next')} />
                   )}
 
                   {lostChannel && !videoSrc && renderLostChannel()}

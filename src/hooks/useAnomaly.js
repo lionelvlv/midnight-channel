@@ -38,7 +38,7 @@ export const CREEPY_GIFS = []
 //  CONFIG
 // ─────────────────────────────────────────────
 const BASE_CHANCE  = 0.028
-const MIN_COOLDOWN = 10
+const MIN_COOLDOWN = 1   // anomaly can fire on every channel switch
 
 function rand(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min }
 
@@ -69,7 +69,7 @@ export function useAnomaly(anomalyChance = BASE_CHANCE) {
     const anomaly = ANOMALIES.find(a => a.id === id)
 
     if (anomaly.type === 'overlay') {
-      return { ...anomaly, duration: rand(15000, 25000) }
+      return { ...anomaly, duration: rand(10000, 15000) }
     }
     // static_heavy: random long burst 1-6s
     return { ...anomaly, duration: rand(1000, 6000) }
