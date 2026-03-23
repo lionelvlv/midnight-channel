@@ -1,0 +1,189 @@
+/* landing.css */
+.landing {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  z-index: 100;
+  overflow: hidden;
+}
+
+/* Subtle noise texture overlay on landing */
+.landing::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+/* Very subtle center glow */
+.landing::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 60% 50% at 50% 55%,
+    rgba(0, 40, 55, 0.25) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
+}
+
+/* ── Fade-in wrapper ── */
+.landing-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  text-align: center;
+  padding: 0 24px;
+}
+
+/* ── Scan line across top (broadcast artifact) ── */
+.landing-scanline {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(0, 180, 220, 0.08);
+  box-shadow: 0 0 12px rgba(0, 180, 220, 0.12);
+  animation: scan-sweep 8s linear infinite;
+  pointer-events: none;
+  z-index: 3;
+}
+@keyframes scan-sweep {
+  0%   { top: -2px; opacity: 0; }
+  5%   { opacity: 1; }
+  95%  { opacity: 0.6; }
+  100% { top: 100%; opacity: 0; }
+}
+
+/* ── Title ── */
+.landing-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 6px;
+  color: rgba(255, 255, 255, 0.2);
+  text-transform: uppercase;
+  opacity: 0;
+  animation: fade-flicker 0.6s ease forwards;
+  animation-delay: 0.4s;
+}
+
+.landing-title {
+  font-family: var(--font-vt);
+  font-size: clamp(52px, 10vw, 96px);
+  letter-spacing: 8px;
+  color: white;
+  text-shadow:
+    0 0 20px rgba(255, 255, 255, 0.12),
+    0 0 60px rgba(0, 160, 200, 0.08);
+  opacity: 0;
+  animation: fade-flicker 0.8s ease forwards;
+  animation-delay: 0.9s;
+  line-height: 1;
+}
+
+/* ── Subtitle lines ── */
+.landing-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.landing-line {
+  font-family: var(--font-mono);
+  font-size: clamp(11px, 1.8vw, 13px);
+  color: rgba(255, 255, 255, 0.35);
+  letter-spacing: 2px;
+  opacity: 0;
+  animation: fade-flicker 0.7s ease forwards;
+}
+.landing-line:nth-child(1) { animation-delay: 1.8s; }
+.landing-line:nth-child(2) { animation-delay: 2.6s; }
+.landing-line:nth-child(3) { animation-delay: 3.4s; }
+
+/* ── Divider ── */
+.landing-divider {
+  width: 1px;
+  height: 32px;
+  background: linear-gradient(to bottom, transparent, rgba(255,255,255,0.12), transparent);
+  opacity: 0;
+  animation: fade-flicker 0.5s ease forwards;
+  animation-delay: 4.2s;
+}
+
+/* ── Enter button ── */
+.landing-enter {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 5px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.7);
+  padding: 14px 40px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+  opacity: 0;
+  animation: fade-flicker 0.8s ease forwards, pulse-border 7s ease-in-out infinite;
+  animation-delay: 4.8s, 5.5s;
+  transition: color 0.3s, border-color 0.3s, text-shadow 0.3s;
+}
+
+.landing-enter::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255,255,255,0.06) 50%,
+    transparent 100%
+  );
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.landing-enter:hover {
+  color: white;
+  border-color: rgba(255, 255, 255, 0.5);
+  text-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+}
+.landing-enter:hover::before { opacity: 1; }
+.landing-enter:active { transform: scale(0.98); }
+
+/* ── Landing exit — fade to black ── */
+.landing.exiting {
+  animation: fade-to-black 0.9s ease forwards;
+}
+
+/* ── Animations ── */
+@keyframes fade-flicker {
+  0%   { opacity: 0; }
+  30%  { opacity: 0.7; }
+  45%  { opacity: 0.2; }
+  60%  { opacity: 0.8; }
+  70%  { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+@keyframes pulse-border {
+  0%, 100% { box-shadow: none; border-color: rgba(255,255,255,0.15); }
+  50%       { box-shadow: 0 0 18px rgba(255,255,255,0.06), inset 0 0 12px rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.3); }
+}
+
+@keyframes fade-to-black {
+  0%   { opacity: 1; }
+  100% { opacity: 0; pointer-events: none; }
+}
