@@ -234,11 +234,15 @@ const DEFAULT_FILTER = {
 // ═══════════════════════════════════════════════
 export function TVInterface() {
   const { goNext, goPrev, setFilterConfig } = useChannel()
+
+  // filterConfig must be declared BEFORE useAnomaly so anomalyChance is readable
+  const [filterConfig,  setFilterConfig_] = useState(DEFAULT_FILTER)
+
   const { check: checkAnomaly, buildData: buildAnomalyData } = useAnomaly(filterConfig.anomalyChance ?? 0.028)
 
   const [videoSrc,      setVideoSrc]      = useState('')
   const [videoSource,   setVideoSource]   = useState('youtube')
-  const [currentVideo,  setCurrentVideo]  = useState(null)   // tracks current video for source link
+  const [currentVideo,  setCurrentVideo]  = useState(null)
   const [isSwitching,   setIsSwitching]   = useState(false)
   const [osd,           setOsd]           = useState({ visible: false, channel: '', status: '' })
   const [screenWarped,  setScreenWarped]  = useState(false)
@@ -249,9 +253,7 @@ export function TVInterface() {
   const [volumeFlash,   setVolumeFlash]   = useState(false)
   const [isPlaying,     setIsPlaying]     = useState(true)
   const [showFilter,    setShowFilter]    = useState(false)
-  const [filterConfig,  setFilterConfig_] = useState(DEFAULT_FILTER)
   const [sessionAge,    setSessionAge]    = useState(0)
-  // UI fade
   const [uiVisible,     setUiVisible]     = useState(true)
   const [uiHidden,      setUiHidden]      = useState(false)
   const [isFullscreen,  setIsFullscreen]  = useState(false)
