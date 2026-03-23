@@ -354,13 +354,14 @@ export function TVInterface() {
       if (e.key === 'g' || e.key === 'G') {
         e.preventDefault()
         clearTimeout(anomalyTimer.current)
-        const debugAnom = { id: 'live_broadcast', type: 'overlay', duration: 20000 }
-        const data = buildAnomalyData('live_broadcast')
-        setAnomalyData(data)
-        setScreenAnomaly('live_broadcast')
-        anomalyTimer.current = setTimeout(() => {
-          setScreenAnomaly(null); setAnomalyData(null)
-        }, 20000)
+        ;(async () => {
+          const data = await buildAnomalyData('live_broadcast')
+          setAnomalyData(data)
+          setScreenAnomaly('live_broadcast')
+          anomalyTimer.current = setTimeout(() => {
+            setScreenAnomaly(null); setAnomalyData(null)
+          }, 20000)
+        })()
       }
     }
     window.addEventListener('keydown', onKey)
@@ -517,7 +518,7 @@ export function TVInterface() {
 
     // ── Handle overlay anomalies ──
     if (anom && anom.type === 'overlay') {
-      const data = buildAnomalyData(anom.id)
+      const data = await buildAnomalyData(anom.id)
 
       // Play appropriate sound
       const vol = volumeRef.current
@@ -1024,7 +1025,7 @@ export function TVInterface() {
               onFullscreen={handleFullscreen}
             />
             <div className="key-hint">
-              ← → or A/D &nbsp;·&nbsp; Space pause &nbsp;·&nbsp; F filter &nbsp;·&nbsp;·&nbsp; <span className="key-hint-tab">TAB</span> hide
+              ← → or A/D &nbsp;·&nbsp; Space pause &nbsp;·&nbsp; F filter &nbsp;·&nbsp; G gif debug &nbsp;·&nbsp; <span className="key-hint-tab">TAB</span> hide
             </div>
           </div>
         </div>
