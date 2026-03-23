@@ -10,6 +10,7 @@
 .control-bar:focus-within { opacity: 1; }
 @media (max-width: 620px) { .control-bar { opacity: 0.8; } }
 
+/* ── Shared button base ── */
 .ctrl-btn {
   display: flex; align-items: center; gap: 6px;
   padding: 7px 14px;
@@ -20,45 +21,116 @@
   letter-spacing: 1.5px; text-transform: uppercase;
   cursor: pointer; transition: color 0.15s, background 0.15s, border-color 0.15s;
 }
-.ctrl-btn:hover { color: rgba(255,255,255,0.7); background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.15); }
-.ctrl-btn.ctrl-active { color: var(--green-osd); border-color: rgba(0,224,64,0.2); background: rgba(0,224,64,0.04); }
+.ctrl-btn:hover {
+  color: rgba(255,255,255,0.7);
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.15);
+}
+.ctrl-btn.ctrl-active {
+  color: var(--green-osd);
+  border-color: rgba(0,224,64,0.2);
+  background: rgba(0,224,64,0.04);
+}
 .ctrl-icon { font-size: 11px; line-height: 1; }
 .ctrl-label { font-size: 8px; letter-spacing: 1.5px; }
 
-.ctrl-volume {
-  display: flex; align-items: center; gap: 6px;
-  padding: 5px 12px;
-  border: 1px solid rgba(255,255,255,0.07);
-  background: rgba(255,255,255,0.03);
+/* ── Play / Pause button ── */
+.ctrl-playpause {
+  padding: 6px 12px;
+  min-width: 36px;
+  justify-content: center;
 }
+.ctrl-pp-icon {
+  display: flex; align-items: center; justify-content: center;
+}
+.ctrl-pp-icon svg {
+  width: 11px; height: 13px;
+  fill: rgba(255,255,255,0.35);
+  stroke: none;
+  transition: fill 0.15s;
+}
+.ctrl-playpause:hover .ctrl-pp-icon svg { fill: rgba(255,255,255,0.85); }
+.ctrl-playpause.ctrl-active .ctrl-pp-icon svg { fill: var(--green-osd); }
+
+/* ── Volume container ── */
+.ctrl-volume {
+  display: flex; align-items: center; gap: 7px;
+  padding: 5px 10px;
+  border: 1px solid rgba(255,255,255,0.07);
+  background: rgba(0,0,0,0.4);
+}
+
+/* ── Mute / speaker icon button ── */
 .ctrl-mute-btn {
   background: none; border: none; cursor: pointer;
-  padding: 0; line-height: 1; font-size: 11px;
+  padding: 0; display: flex; align-items: center;
   opacity: 0.45; transition: opacity 0.15s;
 }
 .ctrl-mute-btn:hover { opacity: 0.9; }
+.vol-icon {
+  width: 13px; height: 13px;
+  fill: rgba(0,224,64,0.75);
+  stroke: rgba(0,224,64,0.75);
+  stroke-width: 0.5;
+  overflow: visible;
+}
 
-.vol-slider {
-  -webkit-appearance: none; appearance: none;
-  width: 80px; height: 2px;
-  background: rgba(255,255,255,0.14);
-  outline: none; cursor: pointer; border-radius: 0;
+/* ── Phosphor segmented bar ── */
+.vol-bar {
+  display: flex; align-items: center; gap: 2px;
+  height: 18px;
 }
-.vol-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 10px; height: 10px; border-radius: 50%;
-  background: rgba(255,255,255,0.65); cursor: pointer;
-  border: 1px solid rgba(255,255,255,0.3);
-}
-.vol-slider::-moz-range-thumb {
-  width: 10px; height: 10px; border-radius: 50%;
-  background: rgba(255,255,255,0.65); cursor: pointer;
-  border: 1px solid rgba(255,255,255,0.3);
-}
-.ctrl-volume:hover .vol-slider { background: rgba(255,255,255,0.26); }
-.ctrl-volume:hover .vol-slider::-webkit-slider-thumb { background: rgba(255,255,255,0.9); }
 
+.vol-seg {
+  width: 5px;
+  height: 14px;
+  border: none;
+  border-radius: 1px;
+  padding: 0;
+  cursor: pointer;
+  transition: opacity 0.06s, box-shadow 0.06s;
+  position: relative;
+}
+
+/* Unlit state — dim phosphor ghost */
+.vol-seg-green { background: rgba(0, 180, 50, 0.12); }
+.vol-seg-yellow { background: rgba(200, 200, 0, 0.10); }
+.vol-seg-red    { background: rgba(220, 40, 20, 0.10); }
+
+/* Lit state — bright phosphor glow */
+.vol-seg-green.lit {
+  background: #00e040;
+  box-shadow:
+    0 0 4px #00e040,
+    0 0 10px rgba(0, 224, 64, 0.5),
+    0 0 2px rgba(0, 224, 64, 0.8) inset;
+}
+.vol-seg-yellow.lit {
+  background: #d4d400;
+  box-shadow:
+    0 0 4px #d4d400,
+    0 0 10px rgba(212, 212, 0, 0.5),
+    0 0 2px rgba(212, 212, 0, 0.8) inset;
+}
+.vol-seg-red.lit {
+  background: #e02010;
+  box-shadow:
+    0 0 4px #e02010,
+    0 0 10px rgba(220, 40, 20, 0.5),
+    0 0 2px rgba(220, 40, 20, 0.8) inset;
+}
+
+/* Hover — light up the target segment */
+.vol-seg:hover,
+.vol-seg:hover ~ .vol-seg { opacity: 0.6; }
+.vol-bar:hover .vol-seg-green:not(.lit) { background: rgba(0, 224, 64, 0.2); }
+.vol-bar:hover .vol-seg-yellow:not(.lit) { background: rgba(212, 212, 0, 0.18); }
+.vol-bar:hover .vol-seg-red:not(.lit)    { background: rgba(220, 40, 20, 0.18); }
+
+/* Vol label */
 .vol-label {
-  font-family: var(--font-mono); font-size: 8px;
-  color: rgba(255,255,255,0.25); letter-spacing: 1px; min-width: 28px; text-align: right;
+  font-family: var(--font-mono); font-size: 7px;
+  color: rgba(0,224,64,0.4); letter-spacing: 1px;
+  min-width: 26px; text-align: right;
+  text-shadow: 0 0 4px rgba(0,224,64,0.3);
 }

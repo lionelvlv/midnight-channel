@@ -205,13 +205,18 @@ function CountdownDigit({ from }) {
 // ═══════════════════════════════════════════════
 //  DEAD AIR SCREEN
 // ═══════════════════════════════════════════════
-function DeadAirScreen() {
+function DeadAirScreen({ onOpenFilter }) {
   return (
     <div className="anomaly-overlay anomaly-dead-air">
-      <div className="dead-air-text">SIGNAL UNAVAILABLE</div>
-      <div className="dead-air-sub">ALL BROADCAST SOURCES EXHAUSTED</div>
-      <div className="dead-air-sub2">CHECK BACK TOMORROW</div>
-      <div className="dead-air-code">ERR_NO_SIGNAL :: 0x00FF</div>
+      <div className="dead-air-text">SOURCE EXHAUSTED</div>
+      <div className="dead-air-sub">This source has no more signal tonight.</div>
+      <div className="dead-air-sub">Try enabling other sources or changing filters.</div>
+      {onOpenFilter && (
+        <button className="dead-air-btn" onClick={onOpenFilter}>
+          CHANGE SOURCE
+        </button>
+      )}
+      <div className="dead-air-code">ERR_NO_SIGNAL :: {new Date().toLocaleTimeString()}</div>
     </div>
   )
 }
@@ -220,6 +225,7 @@ const DEFAULT_FILTER = {
   genreId: 'any', yearEnabled: false,
   yearFrom: 2000, yearTo: new Date().getFullYear(),
   includeTags: [], excludeTags: [],
+  sourceWeights: null,  // null = use defaults from VIDEO_SOURCES
 }
 
 // ═══════════════════════════════════════════════
@@ -240,6 +246,7 @@ export function TVInterface() {
   const [screenAnomaly, setScreenAnomaly] = useState(null)
   const [anomalyData,   setAnomalyData]   = useState(null)
   const [volume,        setVolume]        = useState(80)
+  const [isPlaying,     setIsPlaying]     = useState(true)
   const [showFilter,    setShowFilter]    = useState(false)
   const [filterConfig,  setFilterConfig_] = useState(DEFAULT_FILTER)
   const [sessionAge,    setSessionAge]    = useState(0)
@@ -349,6 +356,7 @@ export function TVInterface() {
       if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') { e.preventDefault(); handleSwitch('next') }
       if (e.key === 'f'          || e.key === 'F') { e.preventDefault(); setShowFilter(v => !v) }
       if (e.key === 'c'          || e.key === 'C') { e.preventDefault(); handleCopyLink() }
+      if (e.key === ' ')                           { e.preventDefault(); handlePlayPause() }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -470,9 +478,43 @@ export function TVInterface() {
       copiedTimerRef.current = setTimeout(() => setCopied(false), 2200)
     }
   }
+
+  // ── Play / Pause ──────────────────────────────────────────────────────────
+  function handlePlayPause() {
+    const next = !isPlaying
+    setIsPlaying(next)
+
+    // Native <video> (Wikimedia)
+    if (videoRef.current) {
+      next ? videoRef.current.play() : videoRef.current.pause()
+    }
+
+    // YouTube iframe — postMessage API
+    if (videoSource === 'youtube' && iframeRef.current) {
+      try {
+        iframeRef.current.contentWindow?.postMessage(
+          JSON.stringify({ event: 'command', func: next ? 'playVideo' : 'pauseVideo', args: [] }), '*'
+        )
+      } catch {}
+    }
+
+    // Archive / Dailymotion iframes — no JS API; swap src to effectively pause
+    // (removing src stops playback; restoring resumes from start — best we can do cross-origin)
+    if ((videoSource === 'archive' || videoSource === 'dailymotion') && iframeRef.current) {
+      if (!next) {
+        iframeRef.current.dataset.pausedSrc = iframeRef.current.src
+        iframeRef.current.src = 'about:blank'
+      } else {
+        const saved = iframeRef.current.dataset.pausedSrc
+        if (saved) iframeRef.current.src = saved
+      }
+    }
+  }
+
   const handleSwitch = useCallback(async (direction) => {
     if (switchingRef.current) return
     switchingRef.current = true; setIsSwitching(true)
+    setIsPlaying(true)  // always resume on channel change
 
     if (!humStarted.current) { humStarted.current = true; startHum(0.06) }
 
@@ -584,6 +626,11 @@ export function TVInterface() {
   useEffect(() => { handleSwitch('next') }, []) // eslint-disable-line
 
   function handleFilterApply({ genreId, genre, searchOpts, sourceWeights }) {
+    // sourceWeights from FilterPanel includes {id, weight, enabled} — store full objects
+    // Pass to useChannel as active weights (0 for disabled)
+    const activeWeights = sourceWeights
+      ? sourceWeights.map(s => ({ id: s.id, weight: s.enabled ? s.weight : 0 }))
+      : null
     const newConfig = {
       genreId,
       yearEnabled:   !!searchOpts.publishedAfter,
@@ -591,10 +638,12 @@ export function TVInterface() {
       yearTo:        searchOpts.publishedBefore ? parseInt(searchOpts.publishedBefore) : new Date().getFullYear(),
       includeTags:   searchOpts.includeTags  ?? [],
       excludeTags:   searchOpts.excludeTags  ?? [],
-      sourceWeights: sourceWeights ?? null,
+      sourceWeights: sourceWeights ?? null,  // full {id,weight,enabled} for FilterPanel re-init
     }
     setFilterConfig_(newConfig)
-    setFilterConfig({ seeds: genre?.seeds ?? null, searchOpts, sourceWeights: sourceWeights ?? null })
+    setFilterConfig({ seeds: genre?.seeds ?? null, searchOpts, sourceWeights: activeWeights })
+    // Clear any stuck lostChannel/dead-air screen immediately
+    setLostChannel(null); setVideoSrc(''); setCurrentVideo(null)
     setTimeout(() => handleSwitch('next'), 50)
   }
 
@@ -867,7 +916,7 @@ export function TVInterface() {
   }
 
   function renderLostChannel() {
-    if (lostChannel === 'dead_air') return <DeadAirScreen />
+    if (lostChannel === 'dead_air') return <DeadAirScreen onOpenFilter={() => setShowFilter(true)} />
     switch (lostChannel) {
       case 'test_pattern': return <TestPatternScreen />
       case 'standby_card': return <StandbyScreen />
@@ -980,9 +1029,11 @@ export function TVInterface() {
               onVolumeChange={setVolume}
               filterConfig={filterConfig}
               onFilterOpen={() => setShowFilter(true)}
+              isPlaying={isPlaying}
+              onPlayPause={handlePlayPause}
             />
             <div className="key-hint">
-              ← → or A / D &nbsp;·&nbsp; F filter &nbsp;·&nbsp; C copy &nbsp;·&nbsp; <span className="key-hint-tab">TAB</span> hide
+              ← → or A/D &nbsp;·&nbsp; Space pause &nbsp;·&nbsp; F filter &nbsp;·&nbsp; C copy &nbsp;·&nbsp; <span className="key-hint-tab">TAB</span> hide
             </div>
           </div>
         </div>

@@ -523,7 +523,7 @@
 .anomaly-dead-air {
   background: #000;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   animation: fade-quick 0.2s ease forwards;
 }
 .dead-air-text {
@@ -533,17 +533,29 @@
 }
 .dead-air-sub {
   font-family: var(--font-mono); font-size: 8px;
-  color: rgba(255,255,255,0.25); letter-spacing: 2px;
+  color: rgba(255,255,255,0.22); letter-spacing: 2px;
+  text-align: center;
 }
-.dead-air-sub2 {
+.dead-air-btn {
+  margin-top: 14px;
+  padding: 8px 20px;
+  background: none;
+  border: 1px solid rgba(0,224,64,0.3);
+  color: rgba(0,224,64,0.6);
   font-family: var(--font-mono); font-size: 9px;
-  color: rgba(255,100,100,0.4); letter-spacing: 2px;
-  margin-top: 8px;
+  letter-spacing: 3px; text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.dead-air-btn:hover {
+  background: rgba(0,224,64,0.06);
+  color: rgba(0,224,64,0.9);
+  border-color: rgba(0,224,64,0.6);
 }
 .dead-air-code {
   font-family: var(--font-mono); font-size: 7px;
   color: rgba(255,50,50,0.2); letter-spacing: 1px;
-  margin-top: 16px;
+  margin-top: 12px;
 }
 
 /* Dead frequency */

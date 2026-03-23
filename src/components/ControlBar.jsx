@@ -1,16 +1,41 @@
 // src/components/ControlBar.jsx
 import '../styles/controlbar.css'
 
-export function ControlBar({ volume, onVolumeChange, filterConfig, onFilterOpen }) {
+// How many segments in the phosphor volume bar
+const VOL_SEGMENTS = 16
+
+export function ControlBar({
+  volume, onVolumeChange,
+  filterConfig, onFilterOpen,
+  isPlaying, onPlayPause,
+}) {
   const isMuted    = volume === 0
   const hasFilters = filterConfig.genreId !== 'any'
     || filterConfig.yearEnabled
     || (filterConfig.includeTags?.length ?? 0) > 0
     || (filterConfig.excludeTags?.length ?? 0) > 0
 
+  // How many segments are lit — full at 100, half at 50, etc.
+  const litCount = Math.round((volume / 100) * VOL_SEGMENTS)
+
   return (
     <div className="control-bar">
 
+      {/* Play / Pause */}
+      <button
+        className="ctrl-btn ctrl-playpause"
+        onClick={onPlayPause}
+        title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
+      >
+        <span className="ctrl-icon ctrl-pp-icon">
+          {isPlaying
+            ? <svg viewBox="0 0 12 14" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="3.5" height="12" rx="0.5"/><rect x="7.5" y="1" width="3.5" height="12" rx="0.5"/></svg>
+            : <svg viewBox="0 0 12 14" xmlns="http://www.w3.org/2000/svg"><polygon points="1,1 11,7 1,13"/></svg>
+          }
+        </span>
+      </button>
+
+      {/* Filter */}
       <button
         className={`ctrl-btn${hasFilters ? ' ctrl-active' : ''}`}
         onClick={onFilterOpen}
@@ -20,20 +45,60 @@ export function ControlBar({ volume, onVolumeChange, filterConfig, onFilterOpen 
         <span className="ctrl-label">{hasFilters ? 'FILTERED' : 'FILTER'}</span>
       </button>
 
-      <div className="ctrl-volume">
+      {/* Volume — phosphor segmented bar */}
+      <div
+        className="ctrl-volume"
+        title={isMuted ? 'Unmuted (click mute)' : `Volume ${volume}%`}
+      >
         <button
           className="ctrl-mute-btn"
           onClick={() => onVolumeChange(isMuted ? 60 : 0)}
           title={isMuted ? 'Unmute' : 'Mute'}
+          aria-label={isMuted ? 'Unmute' : 'Mute'}
         >
-          <span className="ctrl-icon">{isMuted ? '🔇' : volume < 40 ? '🔈' : '🔊'}</span>
+          <svg className="vol-icon" viewBox="0 0 14 14" xmlns="http://www.w3.org/2000/svg">
+            {isMuted ? (
+              /* speaker with X */
+              <>
+                <polygon points="1,4 5,4 9,1 9,13 5,10 1,10" />
+                <line x1="11" y1="4" x2="14" y2="10" />
+                <line x1="14" y1="4" x2="11" y2="10" />
+              </>
+            ) : volume < 40 ? (
+              /* speaker low */
+              <>
+                <polygon points="1,4 5,4 9,1 9,13 5,10 1,10" />
+                <path d="M11,5 Q12.5,7 11,9" fill="none" strokeWidth="1.2"/>
+              </>
+            ) : (
+              /* speaker high */
+              <>
+                <polygon points="1,4 5,4 9,1 9,13 5,10 1,10" />
+                <path d="M11,4 Q13.5,7 11,10" fill="none" strokeWidth="1.2"/>
+                <path d="M12.2,2 Q15.5,7 12.2,12" fill="none" strokeWidth="1.2"/>
+              </>
+            )}
+          </svg>
         </button>
-        <input
-          type="range" className="vol-slider"
-          min="0" max="100" step="2"
-          value={volume}
-          onChange={e => onVolumeChange(Number(e.target.value))}
-        />
+
+        {/* Segmented phosphor bar — clicking a segment sets volume */}
+        <div className="vol-bar" role="slider" aria-valuenow={volume} aria-valuemin={0} aria-valuemax={100}>
+          {Array.from({ length: VOL_SEGMENTS }).map((_, i) => {
+            const segVol = Math.round(((i + 1) / VOL_SEGMENTS) * 100)
+            const isLit  = i < litCount
+            // Color zones: green → yellow → red
+            const zone   = i < 10 ? 'green' : i < 13 ? 'yellow' : 'red'
+            return (
+              <button
+                key={i}
+                className={`vol-seg vol-seg-${zone}${isLit ? ' lit' : ''}`}
+                onClick={() => onVolumeChange(segVol)}
+                aria-label={`Set volume to ${segVol}%`}
+              />
+            )
+          })}
+        </div>
+
         <span className="vol-label">{isMuted ? 'MUTE' : `${volume}%`}</span>
       </div>
 
