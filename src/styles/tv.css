@@ -276,6 +276,28 @@
   z-index: 1;
 }
 
+/* YouTube-specific: revert to base scale (don't distort content).
+   The logo is hidden via .yt-logo-mask overlay instead. */
+.tv-iframe-yt {
+  transform: scale(1.02);  /* same as base — no extra zoom */
+}
+
+/* Precise mask that covers only the YouTube watermark area (bottom-right ~100x30px).
+   Sits between the iframe (z:1) and CRT scanlines (z:5), so scanlines overlay it naturally. */
+.yt-logo-mask {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 120px;
+  height: 40px;
+  background: #000;
+  z-index: 2;
+  pointer-events: none;
+  /* Fade edges so it doesn't look like a hard crop */
+  -webkit-mask-image: linear-gradient(to top-left, black 40%, transparent 100%);
+  mask-image: linear-gradient(to top-left, black 40%, transparent 100%);
+}
+
 /* ── CRT layers ── */
 .crt-scanlines {
   position: absolute; inset: 0;
@@ -564,6 +586,7 @@
   color: rgba(255,255,255,0.82); letter-spacing: 3px; text-align: center;
   animation: sys-glitch 3.5s step-end infinite;
   padding: 0 20px;
+  white-space: pre-line;
 }
 .sys-msg-post {
   font-family: var(--font-mono); font-size: 8px;
@@ -1261,4 +1284,56 @@
   font-size: 8px;
   color: rgba(255,255,255,0.2);
   letter-spacing: 3px;
+}
+
+/* ═══════════════════════════════════════════════
+   COPY LINK BUTTON
+   Sits bottom-right inside the screen, above CRT layers.
+   Fades with the UI idle system.
+   ═══════════════════════════════════════════════ */
+.copy-link-btn {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  z-index: 18;           /* above video, below static canvas */
+  background: none;
+  border: none;
+  padding: 4px 7px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  -webkit-tap-highlight-color: transparent;
+}
+/* show when parent screen is hovered OR ui is active */
+.tv-screen:hover .copy-link-btn,
+.copy-link-btn.copy-visible {
+  opacity: 1;
+}
+.copy-link-btn:hover .copy-icon,
+.copy-link-btn:hover .copy-label { opacity: 1; }
+
+.copy-icon {
+  font-size: 10px;
+  line-height: 1;
+  opacity: 0.3;
+  transition: opacity 0.15s;
+  filter: grayscale(1);
+}
+.copy-label {
+  font-family: var(--font-mono);
+  font-size: 7px;
+  letter-spacing: 1.5px;
+  color: rgba(255,255,255,0.25);
+  opacity: 0.3;
+  transition: opacity 0.15s, color 0.15s;
+  text-transform: uppercase;
+}
+.copy-link-btn.copy-done .copy-icon { opacity: 0.9; filter: none; }
+.copy-link-btn.copy-done .copy-label {
+  color: var(--green-osd);
+  opacity: 0.9;
+  text-shadow: 0 0 6px rgba(0,224,64,0.4);
 }

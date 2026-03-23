@@ -230,7 +230,9 @@ export function TVInterface() {
   const { check: checkAnomaly, buildData: buildAnomalyData } = useAnomaly()
 
   const [videoSrc,      setVideoSrc]      = useState('')
-  const [videoSource,   setVideoSource]   = useState('youtube') // 'youtube' | 'archive'
+  const [videoSource,   setVideoSource]   = useState('youtube')
+  const [currentVideo,  setCurrentVideo]  = useState(null)   // full video object for copy-link
+  const [copied,        setCopied]        = useState(false)  // flash state for copy feedback
   const [isSwitching,   setIsSwitching]   = useState(false)
   const [osd,           setOsd]           = useState({ visible: false, channel: '', status: '' })
   const [screenWarped,  setScreenWarped]  = useState(false)
@@ -246,6 +248,7 @@ export function TVInterface() {
   const [uiHidden,      setUiHidden]      = useState(false) // tab keybind
 
   const iframeRef       = useRef(null)
+  const videoRef        = useRef(null)   // for native <video> elements (wikimedia)
   const staticCanvasRef = useRef(null)
   const grainCanvasRef  = useRef(null)
   const grainInterval   = useRef(null)
@@ -292,9 +295,22 @@ export function TVInterface() {
     return () => clearInterval(sessionTimer.current)
   }, [])
 
-  // ── Volume → iframe + hum ──
+  // ── Volume → all video sources + hum ──
   useEffect(() => {
+    // YouTube / Archive / Dailymotion iframes (YouTube uses postMessage API)
     if (iframeRef.current) setIframeVolume(iframeRef.current, volume)
+    // Wikimedia native <video> — set volume directly on DOM node
+    if (videoRef.current) {
+      const el = videoRef.current
+      el.volume = volume / 100
+      if (volume === 0) {
+        el.muted = true
+      } else {
+        // Must remove the muted attribute AND set .muted = false for all browsers
+        el.muted = false
+        el.removeAttribute('muted')
+      }
+    }
     if (humStarted.current) setHumVolume(volume === 0 ? 0 : (sessionAge >= 5 ? 0.1 : 0.06))
   }, [volume, sessionAge])
 
@@ -332,6 +348,7 @@ export function TVInterface() {
       if (e.key === 'ArrowLeft'  || e.key === 'a' || e.key === 'A') { e.preventDefault(); handleSwitch('prev') }
       if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') { e.preventDefault(); handleSwitch('next') }
       if (e.key === 'f'          || e.key === 'F') { e.preventDefault(); setShowFilter(v => !v) }
+      if (e.key === 'c'          || e.key === 'C') { e.preventDefault(); handleCopyLink() }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -366,23 +383,93 @@ export function TVInterface() {
   // ── Build video src from item ──
   function buildVideoSrc(video) {
     if (!video) return ''
+
     if (video.source === 'archive') {
-      return `https://archive.org/embed/${video.id.videoId}?autoplay=1&start=0`
+      // archive.org embed: suppress their header/controls, autoplay
+      return `https://archive.org/embed/${video.id.videoId}?autoplay=1&start=0&output=embed`
     }
+
     if (video.source === 'wikimedia') {
-      return video.url ?? ''  // direct MP4/WebM URL
+      return video.url ?? ''  // direct MP4/WebM — volume set via videoRef after mount
     }
+
     if (video.source === 'dailymotion') {
       const vid = video.id?.videoId
-      return vid ? `https://www.dailymotion.com/embed/video/${vid}?autoplay=1&queue-enable=0&ui-logo=0&sharing-enable=0` : ''
+      if (!vid) return ''
+      // Suppress all Dailymotion UI chrome
+      const p = new URLSearchParams({
+        autoplay: 1,
+        'queue-enable': 0,
+        'ui-logo': 0,
+        'sharing-enable': 0,
+        'ui-start-screen-info': 0,
+        'ui-end-screen-info': 0,
+        'endscreen-enable': 0,
+        'ui-theme': 'dark',
+        'background': '000000',
+      })
+      return `https://www.dailymotion.com/embed/video/${vid}?${p}`
+    }
+
+    // YouTube — controls=0 hides play bar, playsinline for iOS,
+    // playlist= same vid enables seamless loop without end-screen
+    const vid = video.id?.videoId
+    if (!vid) return ''
+    const p = new URLSearchParams({
+      autoplay:        1,
+      controls:        0,
+      rel:             0,
+      modestbranding:  1,
+      enablejsapi:     1,
+      iv_load_policy:  3,
+      disablekb:       1,
+      playsinline:     1,
+      loop:            1,
+      playlist:        vid,  // required for loop to work
+    })
+    return `https://www.youtube.com/embed/${vid}?${p}`
+  }
+
+  // ── Get shareable original URL from video object ──
+  function getCanonicalUrl(video) {
+    if (!video) return null
+    if (video.source === 'archive') {
+      return `https://archive.org/details/${video.id.videoId}`
+    }
+    if (video.source === 'wikimedia') {
+      return `https://commons.wikimedia.org/wiki/File:${encodeURIComponent(video.id.videoId)}`
+    }
+    if (video.source === 'dailymotion') {
+      return `https://www.dailymotion.com/video/${video.id.videoId}`
     }
     // youtube
     const vid = video.id?.videoId
-    if (!vid) return ''
-    return `https://www.youtube.com/embed/${vid}?autoplay=1&controls=0&rel=0&modestbranding=1&enablejsapi=1&iv_load_policy=3&disablekb=1`
+    return vid ? `https://www.youtube.com/watch?v=${vid}` : null
   }
 
-  // ── Core switch ──
+  // ── Copy canonical URL to clipboard ──
+  const copiedTimerRef = useRef(null)
+  function handleCopyLink() {
+    const url = getCanonicalUrl(currentVideo)
+    if (!url) return
+    try {
+      navigator.clipboard.writeText(url).then(() => {
+        setCopied(true)
+        clearTimeout(copiedTimerRef.current)
+        copiedTimerRef.current = setTimeout(() => setCopied(false), 2200)
+      })
+    } catch {
+      // Fallback for browsers without clipboard API
+      const el = document.createElement('textarea')
+      el.value = url; el.style.position = 'fixed'; el.style.opacity = '0'
+      document.body.appendChild(el); el.select()
+      document.execCommand('copy')
+      document.body.removeChild(el)
+      setCopied(true)
+      clearTimeout(copiedTimerRef.current)
+      copiedTimerRef.current = setTimeout(() => setCopied(false), 2200)
+    }
+  }
   const handleSwitch = useCallback(async (direction) => {
     if (switchingRef.current) return
     switchingRef.current = true; setIsSwitching(true)
@@ -390,7 +477,7 @@ export function TVInterface() {
     if (!humStarted.current) { humStarted.current = true; startHum(0.06) }
 
     clearTimeout(anomalyTimer.current)
-    setScreenAnomaly(null); setAnomalyData(null); setLostChannel(null)
+    setScreenAnomaly(null); setAnomalyData(null); setLostChannel(null); setCurrentVideo(null)
 
     const anom = checkAnomaly()
     let variant = 'clean'
@@ -445,7 +532,7 @@ export function TVInterface() {
       anomalyTimer.current = setTimeout(() => {
         setScreenAnomaly(null); setAnomalyData(null)
         const src = buildVideoSrc(video)
-        if (src) { setVideoSrc(src); setVideoSource(video?.source ?? 'youtube') }
+        if (src) { setVideoSrc(src); setVideoSource(video?.source ?? 'youtube'); setCurrentVideo(video) }
         else if (lost) setLostChannel(lost)
         const ch = channelNum ?? '--'
         setOsd({ visible: true, channel: `CH ${ch}`, status: lost ? 'No Signal' : 'Now Playing' })
@@ -464,10 +551,10 @@ export function TVInterface() {
                 : `CH ${channelNum ?? '--'}`
 
     if (lost) {
-      setLostChannel(lost)
+      setLostChannel(lost); setCurrentVideo(null)
     } else {
       const src = buildVideoSrc(video)
-      if (src) { setVideoSrc(src); setVideoSource(video?.source ?? 'youtube') }
+      if (src) { setVideoSrc(src); setVideoSource(video?.source ?? 'youtube'); setCurrentVideo(video) }
     }
 
     clearTimeout(osdTimer.current)
@@ -477,8 +564,20 @@ export function TVInterface() {
   }, [goNext, goPrev, checkAnomaly]) // eslint-disable-line
 
   useEffect(() => {
-    if (!videoSrc || !iframeRef.current) return
-    const t = setTimeout(() => setIframeVolume(iframeRef.current, volumeRef.current), 1500)
+    if (!videoSrc) return
+    const t = setTimeout(() => {
+      // Iframe sources (YouTube postMessage volume)
+      if (iframeRef.current) setIframeVolume(iframeRef.current, volumeRef.current)
+      // Native video element (Wikimedia) — unmute after autoplay starts
+      if (videoRef.current) {
+        const el = videoRef.current
+        el.volume = volumeRef.current / 100
+        if (volumeRef.current > 0) {
+          el.muted = false
+          el.removeAttribute('muted')
+        }
+      }
+    }, 400)
     return () => clearTimeout(t)
   }, [videoSrc])
 
@@ -645,7 +744,7 @@ export function TVInterface() {
               <span className="weather-sep">·</span>
               <span className="weather-item">{d.wind} mph wind</span>
             </div>
-            <div className="weather-note">YOU ARE NOT THERE.\nBUT SOMETHING IS.</div>
+            <div className="weather-note">{'YOU ARE NOT THERE.\nBUT SOMETHING IS.'}</div>
           </div>
         )
       case 'number_transmission':
@@ -800,22 +899,28 @@ export function TVInterface() {
                     <>
                       <iframe
                         ref={iframeRef} key={videoSrc}
-                        className="tv-iframe"
+                        className="tv-iframe tv-iframe-yt"
                         src={videoSrc}
                         allow="autoplay; encrypted-media" allowFullScreen
                         title="Night Channel"
                       />
+                      {/* Hides the YouTube watermark logo in the bottom-right corner */}
+                      <div className="yt-logo-mask" />
+                      {/* Transparent overlay catches pointer events so YT UI never appears */}
                       <div className="yt-ui-blocker" onClick={() => handleSwitch('next')} />
                     </>
                   )}
 
                   {videoSrc && videoSource === 'wikimedia' && (
                     <video
+                      ref={videoRef}
                       key={videoSrc}
                       className="tv-iframe"
                       src={videoSrc}
-                      autoPlay muted={volume === 0}
-                      loop playsInline
+                      autoPlay
+                      muted        // always start muted — volume useEffect unmutes after interaction
+                      loop
+                      playsInline
                       style={{ objectFit: 'cover' }}
                     />
                   )}
@@ -845,6 +950,18 @@ export function TVInterface() {
                     {filterLabel && <span className="osd-filter">{filterLabel}</span>}
                   </div>
 
+                  {currentVideo && !isSwitching && (
+                    <button
+                      className={`copy-link-btn${uiVisible && !uiHidden ? ' copy-visible' : ''}${copied ? ' copy-done' : ''}`}
+                      onClick={handleCopyLink}
+                      title="Copy link (C)"
+                      aria-label="Copy original video link"
+                    >
+                      <span className="copy-icon">{copied ? '✓' : '⎘'}</span>
+                      <span className="copy-label">{copied ? 'copied' : 'copy'}</span>
+                    </button>
+                  )}
+
                 </div>
               </div>
               <div className="tv-chin">
@@ -865,7 +982,7 @@ export function TVInterface() {
               onFilterOpen={() => setShowFilter(true)}
             />
             <div className="key-hint">
-              ← → or A / D &nbsp;·&nbsp; F filter &nbsp;·&nbsp; <span className="key-hint-tab">TAB</span> hide UI
+              ← → or A / D &nbsp;·&nbsp; F filter &nbsp;·&nbsp; C copy &nbsp;·&nbsp; <span className="key-hint-tab">TAB</span> hide
             </div>
           </div>
         </div>

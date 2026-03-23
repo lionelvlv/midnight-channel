@@ -137,7 +137,12 @@ export function useChannel() {
   function setFilterConfig({ seeds, searchOpts, sourceWeights }) {
     const newSeeds = seeds ?? DEFAULT_SEEDS
     seedQueueRef.current     = makeSeedQueue(newSeeds)
-    searchOptsRef.current    = searchOpts ?? {}
+    // Embed genre seeds into searchOpts so non-YT fillers can also use them
+    const enrichedOpts = {
+      ...(searchOpts ?? {}),
+      _genreSeeds: seeds ?? null,   // null = default / no genre filter
+    }
+    searchOptsRef.current    = enrichedOpts
     poolRef.current          = []
     historyRef.current       = []
     indexRef.current         = -1
@@ -184,30 +189,58 @@ export function useChannel() {
   }
 
   async function fillFromArchive() {
-    const seed = archQueueRef.current.next()
-    const raw  = await archiveSearch(seed)
+    const opts = searchOptsRef.current
+    // Build a query: start from archive seed, enrich with include keywords
+    let seed = archQueueRef.current.next()
+    if (opts.includeTags?.length) seed = opts.includeTags.join(' ') + ' ' + seed
+    // If genre seeds are set, occasionally use one of them
+    const gSeeds = opts._genreSeeds
+    if (gSeeds?.length && Math.random() < 0.6) {
+      seed = gSeeds[Math.floor(Math.random() * gSeeds.length)]
+    }
+    const raw = await archiveSearch(seed)
     if (!raw?.length) return []
-    const exc = searchOptsRef.current.excludeTags ?? []
+    const exc = opts.excludeTags ?? []
     return raw
       .filter(i => !seenIdsRef.current.has(i.id.videoId) && videoPassesFilter(i, exc))
       .map(i => { seenIdsRef.current.add(i.id.videoId); return i })
   }
 
   async function fillFromDailymotion() {
-    const tags = dmQueueRef.current.next()
-    const raw  = await dailymotionSearch(tags)
+    const opts = searchOptsRef.current
+    // Build tag list from include keywords + a random DM tag group
+    let tags = dmQueueRef.current.next()
+    if (opts.includeTags?.length) {
+      // Inject user keywords as tags (DM accepts these)
+      tags = [...opts.includeTags.slice(0, 3), ...tags.slice(0, 2)]
+    }
+    // Genre seeds: extract keywords from the first seed
+    const gSeeds = opts._genreSeeds
+    if (gSeeds?.length && Math.random() < 0.5) {
+      const words = gSeeds[Math.floor(Math.random() * gSeeds.length)].split(' ').slice(0, 2)
+      tags = [...words, ...tags.slice(0, 2)]
+    }
+    const raw = await dailymotionSearch(tags)
     if (!raw?.length) return []
-    const exc = searchOptsRef.current.excludeTags ?? []
-    return raw
-      .filter(i => !seenIdsRef.current.has(i.id.videoId) && videoPassesFilter(i, exc))
-      .map(i => { seenIdsRef.current.add(i.id.videoId); return i })
+    const exc = opts.excludeTags ?? []
+    // Also apply year filter client-side if set
+    let items = raw.filter(i => !seenIdsRef.current.has(i.id.videoId) && videoPassesFilter(i, exc))
+    items.forEach(i => { seenIdsRef.current.add(i.id.videoId) })
+    return items
   }
 
   async function fillFromWikimedia() {
-    const query = wikiQueueRef.current.next()
-    const raw   = await wikimediaSearch(query)
+    const opts  = searchOptsRef.current
+    // Build query from include keywords or genre seeds
+    let query = wikiQueueRef.current.next()
+    if (opts.includeTags?.length) query = opts.includeTags.slice(0, 2).join(' ')
+    const gSeeds = opts._genreSeeds
+    if (gSeeds?.length && Math.random() < 0.5) {
+      query = gSeeds[Math.floor(Math.random() * gSeeds.length)].split(' ').slice(0, 2).join(' ')
+    }
+    const raw = await wikimediaSearch(query)
     if (!raw?.length) return []
-    const exc = searchOptsRef.current.excludeTags ?? []
+    const exc = opts.excludeTags ?? []
     return raw
       .filter(i => !seenIdsRef.current.has(i.id.videoId) && videoPassesFilter(i, exc))
       .map(i => { seenIdsRef.current.add(i.id.videoId); return i })

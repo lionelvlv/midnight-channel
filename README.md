@@ -1,9 +1,9 @@
 # NIGHT CHANNEL 📺
 
-> *A virtual late-night TV that surfs random YouTube videos.*  
+> *A virtual late-night TV that surfs random videos from across the internet.*  
 > *Dark. Eerie. Liminal. Slightly haunted.*
 
-Night Channel is an immersive atmospheric web experience that simulates channel surfing on a strange TV at 2–4AM. Each flip loads a new random YouTube video through a brief analog static burst, complete with CRT effects, a procedural horror anomaly system, and live Web Audio synthesis.
+Night Channel is an immersive atmospheric web experience that simulates channel surfing on a strange TV at 2–4AM. Each flip loads a new random video through a brief analog static burst, complete with CRT effects, 32 procedural horror anomaly events, and live Web Audio synthesis.
 
 ---
 
@@ -14,152 +14,139 @@ Night Channel is an immersive atmospheric web experience that simulates channel 
 | **Frontend** | React 19 + Vite 6 |
 | **Styling** | Vanilla CSS — zero UI framework |
 | **Fonts** | VT323 (CRT pixel), Space Mono |
-| **Video** | YouTube IFrame Embed API |
-| **Static + click audio** | Web Audio API (procedural — no audio files) |
-| **Background hum** | Web Audio oscillator + LFO |
+| **Video** | YouTube IFrame API, Dailymotion API, Internet Archive, Wikimedia Commons |
+| **Audio** | Web Audio API (procedural — zero audio files) |
 | **Grain + static** | Canvas 2D API |
 | **Backend** | Vercel Serverless Functions (Node.js) |
-| **Video data** | YouTube Data API v3 |
-| **Client cache** | `localStorage`, 7-day TTL |
+| **Cache** | L1 in-memory Map + L2 localStorage (separate TTLs per source) |
+
+---
+
+## Video Sources
+
+| Source | API | Key needed | Notes |
+|---|---|---|---|
+| **YouTube** | Data API v3 | Yes — up to 10 keys with auto-rotation | Quota-exhaustion fallthrough |
+| **Dailymotion** | Public REST API | No | Random tag groups, 6h cache |
+| **Internet Archive** | advancedsearch | No | Public domain films, 7d cache |
+| **Wikimedia Commons** | MediaWiki API | No | Free video files (WebM/MP4), 7d cache |
+
+Sources are weighted randomly (default: YT 55%, Archive 20%, DM 15%, Wiki 10%) and fully configurable via the **Sources** filter tab.
+
+---
+
+## Environment Variables
+
+```bash
+# .env.local
+VITE_YOUTUBE_API_KEY=your_key_here
+
+# Optional: up to 10 rotating keys (server-side too via api/search.js)
+VITE_YOUTUBE_API_KEY_1=key1
+VITE_YOUTUBE_API_KEY_2=key2
+# ...
+
+# Server-side (Vercel) — same pattern
+YOUTUBE_API_KEY_1=key1
+YOUTUBE_API_KEY_2=key2
+```
+
+When all YouTube keys are exhausted, the app falls through to Archive + Dailymotion + Wikimedia automatically. If all sources fail, a special "dead air" screen appears.
 
 ---
 
 ## Features
 
 ### 🖥️ CRT TV Interface
-A styled CRT television in pure CSS:
-- Beveled dark body with multi-layer `box-shadow` depth
-- Recessed screen with scanlines, vignette, barrel-curve illusion, glass gloss
-- Animated film grain (Canvas 2D, ~12fps)
-- Breathing green power LED (off during channel switch)
-- `NOCTURNE` brand label on the chin
+A styled 3D CRT monitor in pure CSS with scanlines, vignette, phosphor grain, and barrel distortion illusion. YouTube player chrome is hidden via a transparent overlay (`controls=0` + `z-index` blocker).
 
-### ⚡ Static Burst Transition (PDR §5.6–5.7)
-3-phase channel flip:
-1. **Cut to black** (~65ms) — phosphor decay
-2. **Static burst** (430–820ms) — Canvas-animated analog noise + procedural Web Audio hiss
-3. **Fade in** — new video loads, OSD updates
+### 📡 Multi-Source Random Pool
+- Videos fetched from 4 sources with weighted randomness
+- Fisher-Yates shuffled seed queue — no back-to-back repeats
+- Session-level deduplication (never see same video twice per session)
+- Parallel prefetch (`POOL_PARALLEL = 2`) keeps pool topped up
+- History navigation (← goes back through seen channels, zero network cost)
+- History capped at 200 entries to prevent memory growth
 
-Three static variants (PDR §5.7):
-- `clean` — white noise + scanlines (~88%)
-- `heavy` — horizontal tear bands + color bleed (~6%)
-- `color` — RGB channel separation (~6%)
+### 🎚️ Filter System
+Three tabs:
+- **Presets** — 6 one-click vibes (Eerie Early 2000s, Golden Age 2010s, Late Night Broadcast, Deep Nature, VHS Nightmare, Retro Science)
+- **Custom** — genre, year range (with proper text inputs), include/exclude keywords matched against video title + description
+- **Sources** — enable/disable each source and adjust relative weights with sliders
 
-### 📻 Channel System
-- **Bug-free channel numbering**: `goNext()`/`goPrev()` return the correct channel number directly, no stale closure
-- **Channel history**: back navigation with ◀ Prev replays already-seen channels
-- **Pool prefetch**: background pool of 5–20 videos, silently refills
-- **24 search seeds**: nature docs, concerts, travel, cooking, gaming, ambient, fireside, aquarium, etc.
-- **Real cable TV numbering**: gaps like actual broadcast channels (2, 4, 5, 7, 9, 11, 13…)
+### 👻 Anomaly System (32 events)
+Rare (~2.8% per flip, min 10-flip cooldown) atmospheric interruptions. All auto-switch to next channel after their duration.
 
-### 📺 Lost Channels (PDR §5.4)
-5% of channel flips → a channel with no content:
+**Subtle (OSD/screen):** impossible_channel, ch_question, crt_warp, shadow_pass, static_heavy
 
-| Type | What appears |
-|---|---|
-| `test_pattern` | Canvas-drawn SMPTE color bars with real-time clock + channel number overlay |
-| `standby_card` | "PLEASE STAND BY" with blinking text |
-| `cryptic` | Atmospheric messages ("TRANSMISSION ERROR", "DO NOT ADJUST YOUR SET", etc.) |
+**Classic overlays:** please_stand_by, no_signal, landing_flash, dead_frequency, channel_zero, color_bars_glitch, memory_corruption, broadcast_warning
 
-### 👁 Anomaly System (PDR §5) — 8 types
-~2.5% probability, 12-flip cooldown, all with **proper timeout + auto-clear**:
+**Content overlays (static):** system_message, ascii_face, static_gif, eerie_gif, viewer_count, signal_decoded, static_poem, lost_transmission, countdown, mirror_test, classified_footage, time_glitch, morse_code, pixel_eyes
 
-| Anomaly | Description |
-|---|---|
-| `impossible_channel` | OSD shows "CH 8023" |
-| `please_stand_by` | Full-screen standby card, then auto-resumes to the video |
-| `no_signal` | Black screen + blinking cursor, then auto-resumes |
-| `landing_flash` | 180ms overlay of landing page text, then auto-resumes |
-| `ch_question` | OSD shows "CH ???" |
-| `crt_warp` | CSS `filter` distorts the screen for 2.8s |
-| `shadow_pass` | Dark silhouette sweeps across the screen |
-| `static_heavy` | Extended (820ms) heavy-distortion static burst |
+**API-powered overlays:** late_night_joke (JokeAPI), cryptic_fact (uselessfacts), unsolicited_advice (AdviceSlip), weather_intercept (Open-Meteo), number_transmission (NumbersAPI)
 
-### 🎵 Audio
-- **Static hiss**: procedural white noise, low-pass filtered, gain-enveloped, per flip
-- **Background hum**: 55Hz sine oscillator + 0.08Hz LFO frequency wobble, ~inaudible (gain 0.007)
-- **Hum deepening**: after 5 minutes, hum volume increases to 0.013 (PDR §5.5)
-- **TV click**: sharp transient burst when sleep timer fires (classic CRT relay sound)
+API data is prefetched on mount and refreshed every 5 minutes so overlays render instantly with no perceptible delay.
 
-### ∞ Ambient Auto-Surf
-Toggle via the control bar. Auto-flips every 45–105 seconds with a random interval. Shows `AUTO` badge in OSD. Stops on sleep timer.
+### 🔊 Audio
+All audio is procedural — no audio files loaded:
+- Static noise burst on channel change
+- Ambient 55Hz hum with LFO modulation (deepens after 5 min)
+- Whisper noise (bandpass-filtered noise burst)
+- Eerie sweep (dual oscillator descending)
+- Glitch burst (4 random-frequency square pulses)
+- Tone generator (configurable freq/duration/type)
 
-### ☽ Sleep Timer
-Cycles: OFF → 15m → 30m → 60m → OFF. Live countdown in the control bar. When it fires:
-- Sharp click sound
-- **CRT collapse animation** — screen implodes from full frame → horizontal line → bright dot → black (clip-path inset animation)
-- TV body goes dark with LED off
-- Hum fades out
-
-### ⏱ Time-Based Events (PDR §5.5)
-- After **5 min**: background hum deepens
-- After **10 min**: CRT vignette darkens, grain intensifies (`.room-deep` class)
-
-### 🕹 Control Bar
-Hover-revealed (opacity 0.18 → 1.0) row below the TV with three buttons:
-- `∞ AMBIENT` — auto-surf toggle
-- `☽ SLEEP` — timer cycle (OFF / 15m / 30m / 60m) with countdown
-- `♪ SOUND` — mute toggle (silences static hiss and hum)
+### 🌑 UI Fade + Hide
+- Controls fade to invisible after 4s of inactivity, return on any input
+- **Tab** key hard-hides everything (including arrows) — re-press to restore
 
 ---
 
-## Project Structure
+## Keyboard Shortcuts
 
-```
-night-channel/
-├── api/
-│   └── search.js                  # Vercel function — YouTube search, key rotation
-├── src/
-│   ├── App.jsx                    # Landing → TV state machine
-│   ├── main.jsx
-│   ├── api.js                     # localStorage cache + in-flight dedup
-│   ├── components/
-│   │   ├── LandingPage.jsx        # Atmospheric staged fade-in + ENTER
-│   │   ├── TVInterface.jsx        # CRT, static, OSD, anomalies, ambient, sleep
-│   │   ├── TestPattern.jsx        # Canvas SMPTE pattern, standby, cryptic screens
-│   │   └── ControlBar.jsx        # Ambient / sleep timer / mute
-│   ├── hooks/
-│   │   ├── useChannel.js          # History, pool prefetch, lost channels
-│   │   └── useAnomaly.js          # Probability engine, 8 anomaly types
-│   └── styles/
-│       ├── base.css               # Reset, CSS vars, fonts
-│       ├── landing.css            # Landing animations
-│       └── tv.css                 # TV body, CRT, OSD, control bar, CRT-off animation
-├── index.html                     # Google Fonts: VT323 + Space Mono
-├── package.json
-├── vite.config.js
-└── vercel.json
-```
+| Key | Action |
+|---|---|
+| `← / A` | Previous channel |
+| `→ / D` | Next channel |
+| `F` | Open filter panel |
+| `Tab` | Toggle UI visibility |
 
 ---
 
-## Getting Started
-
-### Prerequisites
-- Node.js 18+
-- YouTube Data API v3 key
-
-### Local dev
+## Development
 
 ```bash
 npm install
-echo "YOUTUBE_API_KEY_1=your_key" > .env.local
-npx vercel dev
+npm run dev
 ```
 
-### Deploy
+## Deploy (Vercel)
 
 ```bash
-npx vercel --prod
+npm run build
+vercel deploy
 ```
 
-Add `YOUTUBE_API_KEY_1` (and optionally `_2` through `_10`) in **Vercel → Settings → Environment Variables**.
+Set your `YOUTUBE_API_KEY_*` variables in Vercel dashboard under Project → Settings → Environment Variables.
 
 ---
 
-## Roadmap
-- [ ] Emergency alert broadcast interruption screen
-- [ ] Volume slider on screen (via postMessage to iframe)
-- [ ] Reduced-motion mode (crossfade instead of static)
-- [ ] Keyboard shortcuts (← → for channel, M for mute, A for ambient)
-# midnight-channel
+## Caching Architecture
+
+```
+Request → L1 memCache (Map, in-memory) → hit: return instantly
+                ↓ miss
+         L2 localStorage → hit: promote to L1, return
+                ↓ miss
+         Network fetch → write to L1 + L2
+```
+
+| Source | TTL |
+|---|---|
+| YouTube search | 24h |
+| Dailymotion | 6h |
+| Internet Archive | 7d |
+| Wikimedia Commons | 7d |
+| Jokes / facts | 30 min |
+
+localStorage evicts oldest 20% of entries when the 80-entry cap is reached (LRU-style), rather than clearing everything.
