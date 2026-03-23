@@ -1,6 +1,6 @@
 // src/components/FilterPanel.jsx
 import { useState } from 'react'
-import { VIDEO_SOURCES } from '../hooks/useChannel'
+import { VIDEO_SOURCES } from '../videoSources'
 import '../styles/filter.css'
 
 const CURRENT_YEAR = new Date().getFullYear()

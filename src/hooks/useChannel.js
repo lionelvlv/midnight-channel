@@ -1,5 +1,6 @@
 // src/hooks/useChannel.js — multi-source, randomness-first pool management
 import { useRef, useCallback, useEffect } from 'react'
+import { VIDEO_SOURCES } from '../videoSources'
 import {
   ytSearch, archiveSearch, dailymotionSearch,
   isYouTubeExhausted, warmCache,
@@ -49,17 +50,6 @@ const ARCHIVE_SEEDS = [
   'newsreel footage',
   'amateur home movie',
   'industrial film',
-]
-
-// ─────────────────────────────────────────────
-//  VIDEO SOURCE DEFINITIONS
-//  Each source has: id, label, enabled by default,
-//  a weight (relative probability), and fetcher
-// ─────────────────────────────────────────────
-export const VIDEO_SOURCES = [
-  { id: 'youtube',    label: 'YouTube',          defaultWeight: 65 },
-  { id: 'archive',    label: 'Internet Archive', defaultWeight: 20 },
-  { id: 'dailymotion',label: 'Dailymotion',      defaultWeight: 15 },
 ]
 
 // ─────────────────────────────────────────────
