@@ -136,12 +136,12 @@ export function useAnomaly(anomalyChance = BASE_CHANCE) {
   // Prefetch a pool of live content
   async function prefetchApiData() {
     try {
-      const [g1, g2, g3, g4, a1, a2, q1, q2, q3, q4, q5] = await Promise.allSettled([
-        fetchGif('creepy'), fetchGif('eerie'), fetchGif('analog'), fetchGif('surreal'),
+      const [g1, g2, g3, g4, g5, a1, a2, q1, q2, q3, q4, q5] = await Promise.allSettled([
+        fetchGif(), fetchGif(), fetchGif(), fetchGif(), fetchGif(),
         fetchAsciiArt(), fetchAsciiArt(),
         fetchQuote(), fetchQuote(), fetchQuote(), fetchQuote(), fetchQuote(),
       ])
-      const gifs  = [g1,g2,g3,g4].filter(r=>r.status==='fulfilled'&&r.value).map(r=>r.value)
+      const gifs  = [g1,g2,g3,g4,g5].filter(r=>r.status==='fulfilled'&&r.value).map(r=>r.value)
       const arts  = [a1,a2].filter(r=>r.status==='fulfilled'&&r.value).map(r=>r.value)
       const quotes= [q1,q2,q3,q4,q5].filter(r=>r.status==='fulfilled'&&r.value).map(r=>r.value)
       prefetchedRef.current = { gifs, asciiArts: arts, quotes, fetchedAt: Date.now() }
@@ -160,7 +160,6 @@ export function useAnomaly(anomalyChance = BASE_CHANCE) {
     const since = flipCountRef.current - lastAnomalyFlipRef.current
     if (since < MIN_COOLDOWN) return null
 
-    // anomalyChance >= 0.12 = force every eligible flip
     const chance = anomalyChance >= 0.12
       ? 1
       : anomalyChance + Math.min(0.05, (since - MIN_COOLDOWN) * 0.003)
@@ -169,9 +168,21 @@ export function useAnomaly(anomalyChance = BASE_CHANCE) {
 
     lastAnomalyFlipRef.current = flipCountRef.current
 
-    const anomaly = ANOMALIES[Math.floor(Math.random() * ANOMALIES.length)]
+    // Weighted pick: live_broadcast (gif/ascii/quote combos) gets 4x weight
+    // so ~40% of all anomaly fires show the rich media event
+    const WEIGHTED = [
+      ...Array(4).fill('live_broadcast'),
+      'please_stand_by', 'no_signal', 'dead_frequency',
+      'channel_zero', 'color_bars_glitch', 'memory_corruption',
+      'broadcast_warning', 'landing_flash', 'countdown',
+      'viewer_count', 'classified_footage', 'lost_transmission',
+      'time_glitch', 'pixel_eyes', 'mirror_test', 'morse_code',
+      // subtle non-overlay — less common
+      'impossible_channel', 'ch_question', 'crt_warp', 'shadow_pass',
+    ]
+    const id = WEIGHTED[Math.floor(Math.random() * WEIGHTED.length)]
+    const anomaly = ANOMALIES.find(a => a.id === id) ?? ANOMALIES[0]
 
-    // Randomise duration 15-25s for overlay events
     if (anomaly.type === 'overlay') {
       return { ...anomaly, duration: rand(15000, 25000) }
     }

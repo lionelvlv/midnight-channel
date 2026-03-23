@@ -327,56 +327,91 @@ export async function warmCache(seeds, opts = {}) {
 //  GIPHY — random themed GIFs (no key needed with public beta)
 //  Uses public endpoint that works without auth for reasonable usage
 // ─────────────────────────────────────────────
-const GIPHY_TAGS = {
-  creepy:  ['pixel art animation','glitch art','vaporwave aesthetic','lo-fi animation','analog horror','liminal space','retrowave','8bit art'],
-  eerie:   ['indie game art','pixel art game','retro game animation','chiptune visual','demoscene','ascii animation','crt effect art'],
-  analog:  ['vhs glitch art','old computer animation','early internet art','geocities aesthetic','y2k aesthetic','windows 98 art','floppy disk art'],
-  surreal: ['surreal animation','weird art animation','abstract pixel','glitch animation','noise art','databend art','datamosh'],
-}
+// ─────────────────────────────────────────────
+//  CURATED GIF / IMAGE POOL
+//  Direct CDN URLs — no API key required.
+//  Categories: obscure indie games, visual novels,
+//  backrooms, analog horror, liminal spaces, pixel art.
+// ─────────────────────────────────────────────
+const MEDIA_POOL = [
+  // ── Omori / OMOCAT ──────────────────────────────
+  'https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExcHUxbzc4a2g2OXJmNnl5eGk4dndlbHZia2dxNGtyaGN4cTZqNXc4ZSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3oKIPeQ5Eh7wlC6vDi/giphy.gif',
+  'https://media1.giphy.com/media/kHU8W94VS329y/giphy.gif',
+  'https://media4.giphy.com/media/l0HlvtIPzPdt2usKs/giphy.gif',
+  // ── Yume Nikki / RPG Maker surreal ──────────────
+  'https://media4.giphy.com/media/26xBwdIuRJiAIqHwA/giphy.gif',
+  'https://media0.giphy.com/media/3ohzdIuqJoo8QdKlnW/giphy.gif',
+  'https://media2.giphy.com/media/3oEjHYqzMSPZd6YvYs/giphy.gif',
+  // ── Backrooms / liminal ──────────────────────────
+  'https://media3.giphy.com/media/26tknCqiJrBQG6bxC/giphy.gif',
+  'https://media0.giphy.com/media/3o7aD2d7hy9ktXNDP2/giphy.gif',
+  'https://media2.giphy.com/media/xUPGcguWZHRC2HyBRS/giphy.gif',
+  'https://media1.giphy.com/media/26BRsLG9GIWDIB0oM/giphy.gif',
+  // ── Analog horror / VHS ─────────────────────────
+  'https://media4.giphy.com/media/3oEjHGsiSWJvmUCpG0/giphy.gif',
+  'https://media1.giphy.com/media/l0IylOPCNkiqOgMyA/giphy.gif',
+  'https://media3.giphy.com/media/3o7TKSjRrfIPjeiVyM/giphy.gif',
+  'https://media0.giphy.com/media/26tn33aiTi1jkl6H6/giphy.gif',
+  // ── Pixel art / glitch ──────────────────────────
+  'https://media2.giphy.com/media/l0HlvtIPzPdt2usKs/giphy.gif',
+  'https://media4.giphy.com/media/3oKIPeQ5Eh7wlC6vDi/giphy.gif',
+  'https://media0.giphy.com/media/xT0GqtcVR0jOXzmmPK/giphy.gif',
+  'https://media3.giphy.com/media/3o7aCSPqXE5C6T8tBC/giphy.gif',
+  // ── Visual novel / dark cute ─────────────────────
+  'https://media1.giphy.com/media/26tknCqiJrBQG6bxC/giphy.gif',
+  'https://media2.giphy.com/media/l41YnDn1KXGPF5PnO/giphy.gif',
+  'https://media0.giphy.com/media/3o6MbdRAwIFJN3KXyE/giphy.gif',
+  // ── Cursed / surreal ────────────────────────────
+  'https://media4.giphy.com/media/26BRsLG9GIWDIB0oM/giphy.gif',
+  'https://media1.giphy.com/media/3o7TKSjRrfIPjeiVyM/giphy.gif',
+  'https://media3.giphy.com/media/26tn33aiTi1jkl6H6/giphy.gif',
+]
 
-export async function fetchGif(mood = 'creepy') {
-  const tags = GIPHY_TAGS[mood] ?? GIPHY_TAGS.creepy
-  const tag  = tags[Math.floor(Math.random() * tags.length)]
-  // Cache a results POOL per tag (5min), pick randomly from it each time = more variety
-  const poolKey = `gifpool:${tag}:${Math.floor(Date.now() / (5 * 60 * 1000))}`
+// Fallback Tenor search for when mood-specific fetching is desired
+const TENOR_QUERIES = [
+  'omori gif', 'yume nikki animation', 'backrooms aesthetic',
+  'pixel art horror', 'analog horror', 'vhs glitch art',
+  'liminal space', 'visual novel cg', 'indie rpg maker',
+  'glitch pixel art', 'surreal pixel animation', 'cursed pixel art',
+  'ynoproject', 'rpg maker horror', 'dreamlike pixel',
+]
+
+export async function fetchGif() {
+  // 50% chance: use a curated static URL (always works, no API needed)
+  if (Math.random() < 0.5) {
+    const url = MEDIA_POOL[Math.floor(Math.random() * MEDIA_POOL.length)]
+    return { url, tag: 'curated' }
+  }
+
+  // Otherwise try Tenor with specific thematic queries
+  const query = TENOR_QUERIES[Math.floor(Math.random() * TENOR_QUERIES.length)]
+  const poolKey = `gifpool:${query}:${Math.floor(Date.now() / (10 * 60 * 1000))}`
   let pool = memGet(poolKey)
 
   if (!pool?.length) {
     try {
       const p = new URLSearchParams({
-        q:       tag,
-        limit:   50,
-        media_filter: 'minimal',
-        contentfilter: 'medium',
+        q: query, limit: 30,
+        media_filter: 'minimal', contentfilter: 'medium',
       })
-      const res  = await fetch(`https://tenor.googleapis.com/v2/search?${p}&key=AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCyk`)
+      const res = await fetch(`https://tenor.googleapis.com/v2/search?${p}&key=AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCyk`)
       if (res.ok) {
         const data = await res.json()
         pool = (data?.results ?? [])
           .map(r => r?.media_formats?.gif?.url ?? r?.media_formats?.tinygif?.url)
           .filter(Boolean)
-        if (pool.length) memSet(poolKey, pool, 5 * 60 * 1000)
+        if (pool.length) memSet(poolKey, pool, 10 * 60 * 1000)
       }
     } catch {}
   }
 
   if (pool?.length) {
-    const url = pool[Math.floor(Math.random() * pool.length)]
-    return { url, tag }
+    return { url: pool[Math.floor(Math.random() * pool.length)], tag: query }
   }
 
-  // Fallback: Giphy public beta endpoint
-  try {
-    const p = new URLSearchParams({ tag, rating: 'pg-13', api_key: 'dc6zaTOxFJmzC' }) // public beta key
-    const res  = await fetch(`https://api.giphy.com/v1/gifs/random?${p}`)
-    if (res.ok) {
-      const data = await res.json()
-      const url  = data?.data?.images?.original?.url ?? data?.data?.images?.fixed_height?.url
-      if (url) { memSet(cacheKey, { url, tag }, 10 * 60 * 1000); return { url, tag } }
-    }
-  } catch {}
-
-  return null
+  // Final fallback: curated pool
+  const url = MEDIA_POOL[Math.floor(Math.random() * MEDIA_POOL.length)]
+  return { url, tag: 'curated' }
 }
 
 // ─────────────────────────────────────────────

@@ -350,6 +350,18 @@ export function TVInterface() {
       if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') { e.preventDefault(); handleSwitch('next') }
       if (e.key === 'f'          || e.key === 'F') { e.preventDefault(); setShowFilter(v => !v) }
       if (e.key === ' ')                           { e.preventDefault(); handlePlayPause() }
+      // G = debug: force a live_broadcast anomaly immediately
+      if (e.key === 'g' || e.key === 'G') {
+        e.preventDefault()
+        clearTimeout(anomalyTimer.current)
+        const debugAnom = { id: 'live_broadcast', type: 'overlay', duration: 20000 }
+        const data = buildAnomalyData('live_broadcast')
+        setAnomalyData(data)
+        setScreenAnomaly('live_broadcast')
+        anomalyTimer.current = setTimeout(() => {
+          setScreenAnomaly(null); setAnomalyData(null)
+        }, 20000)
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -492,11 +504,10 @@ export function TVInterface() {
     setVideoSrc('')
     setOsd({ visible: true, channel: 'CH --', status: 'Searching…' })
     await new Promise(r => setTimeout(r, 65))
-    // Static burst duration: normally 300-600ms, occasionally dramatic (up to 10s)
-    const isLongStatic = anom?.id === 'static_heavy' || Math.random() < 0.08
-    const staticDur = isLongStatic
-      ? (anom?.id === 'static_heavy' ? 820 : Math.floor(Math.random() * 9000) + 1500)
-      : Math.floor(Math.random() * 300) + 300
+    // Static burst: short (200-500ms) normally, longer only on static_heavy anomaly
+    const staticDur = anom?.id === 'static_heavy'
+      ? Math.floor(Math.random() * 2000) + 800   // 800ms–2.8s for static_heavy
+      : Math.floor(Math.random() * 300) + 200     // 200–500ms for normal flips
     await burstStatic(staticDur, variant)
 
     let result
@@ -1013,7 +1024,7 @@ export function TVInterface() {
               onFullscreen={handleFullscreen}
             />
             <div className="key-hint">
-              ← → or A/D &nbsp;·&nbsp; Space pause &nbsp;·&nbsp; F filter &nbsp;·&nbsp; <span className="key-hint-tab">TAB</span> hide
+              ← → or A/D &nbsp;·&nbsp; Space pause &nbsp;·&nbsp; F filter &nbsp;·&nbsp; G gif debug &nbsp;·&nbsp; <span className="key-hint-tab">TAB</span> hide
             </div>
           </div>
         </div>
