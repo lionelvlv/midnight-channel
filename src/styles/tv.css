@@ -43,15 +43,6 @@
   align-items: center;
   gap: 28px;
   position: relative;
-  transition: opacity 1.2s ease;
-}
-.tv-rig.ui-faded {
-  opacity: 0.15;
-  pointer-events: none;
-}
-.tv-rig.ui-force-hide {
-  opacity: 0 !important;
-  pointer-events: none !important;
 }
 
 /* ═══════════════════════════════════════════
@@ -762,11 +753,15 @@
   pointer-events: none !important;
 }
 
-/* Also fade ghost arrows when UI hidden */
-.ui-force-hide ~ .tv-rig .ghost-btn,
-.room .ui-force-hide ~ * .ghost-btn {
-  opacity: 0;
+.ghost-btn.ghost-ui-fade {
+  opacity: 0.12;
   pointer-events: none;
+  transition: opacity 1.2s ease;
+}
+.ghost-btn.ghost-ui-hide {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 0.3s ease;
 }
 
 /* Key hint tab badge */

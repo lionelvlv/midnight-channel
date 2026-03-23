@@ -162,10 +162,14 @@ function drawColorStatic(ctx, w, h) {
 // ═══════════════════════════════════════════════
 //  GHOST ARROW BUTTON
 // ═══════════════════════════════════════════════
-function GhostArrow({ direction, onClick, disabled }) {
+function GhostArrow({ direction, onClick, disabled, faded, hidden }) {
+  let cls = `ghost-btn ghost-${direction}`
+  if (disabled) cls += ' ghost-disabled'
+  if (hidden)   cls += ' ghost-ui-hide'
+  else if (faded) cls += ' ghost-ui-fade'
   return (
     <button
-      className={`ghost-btn ghost-${direction}${disabled ? ' ghost-disabled' : ''}`}
+      className={cls}
       onClick={onClick} disabled={disabled}
       aria-label={direction === 'prev' ? 'Previous channel' : 'Next channel'}
     >
@@ -924,8 +928,8 @@ export function TVInterface() {
         <div className={`room-glow${isSwitching ? ' dim' : ''}`} />
 
         <div className="tv-rig-wrapper">
-          <div className={`tv-rig${uiClass}`}>
-            <GhostArrow direction="prev" onClick={() => handleSwitch('prev')} disabled={isSwitching} />
+          <div className="tv-rig">
+            <GhostArrow direction="prev" onClick={() => handleSwitch('prev')} disabled={isSwitching} faded={!uiVisible} hidden={uiHidden} />
 
             <div className={`tv-body tv-body-3d${isFullscreen ? ' tv-body-zoomed' : ''}`}>
               <div className="tv-bezel">
@@ -994,7 +998,7 @@ export function TVInterface() {
               </div>
             </div>
 
-            <GhostArrow direction="next" onClick={() => handleSwitch('next')} disabled={isSwitching} />
+            <GhostArrow direction="next" onClick={() => handleSwitch('next')} disabled={isSwitching} faded={!uiVisible} hidden={uiHidden} />
           </div>
 
           <div className={`ui-fade-group${uiClass}`}>

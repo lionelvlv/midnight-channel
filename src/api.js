@@ -328,38 +328,42 @@ export async function warmCache(seeds, opts = {}) {
 //  Uses public endpoint that works without auth for reasonable usage
 // ─────────────────────────────────────────────
 const GIPHY_TAGS = {
-  creepy:  ['horror','glitch','static','disturbing','weird','trippy','analog','vhs'],
-  eerie:   ['ghost','paranormal','haunted','spooky','fog','dark','watching'],
-  analog:  ['television','static','broadcast','signal','old tv','noise'],
-  surreal: ['surreal','bizarre','uncanny','strange','dreamlike','liminal'],
+  creepy:  ['pixel art animation','glitch art','vaporwave aesthetic','lo-fi animation','analog horror','liminal space','retrowave','8bit art'],
+  eerie:   ['indie game art','pixel art game','retro game animation','chiptune visual','demoscene','ascii animation','crt effect art'],
+  analog:  ['vhs glitch art','old computer animation','early internet art','geocities aesthetic','y2k aesthetic','windows 98 art','floppy disk art'],
+  surreal: ['surreal animation','weird art animation','abstract pixel','glitch animation','noise art','databend art','datamosh'],
 }
 
 export async function fetchGif(mood = 'creepy') {
   const tags = GIPHY_TAGS[mood] ?? GIPHY_TAGS.creepy
   const tag  = tags[Math.floor(Math.random() * tags.length)]
-  const cacheKey = `gif:${mood}:${tag}:${Math.floor(Date.now() / (10 * 60 * 1000))}` // 10min cache slot
-  const cached = memGet(cacheKey)
-  if (cached) return cached
+  // Cache a results POOL per tag (5min), pick randomly from it each time = more variety
+  const poolKey = `gifpool:${tag}:${Math.floor(Date.now() / (5 * 60 * 1000))}`
+  let pool = memGet(poolKey)
 
-  try {
-    // Tenor public API — no key required
-    const p = new URLSearchParams({
-      q:       tag,
-      limit:   20,
-      media_filter: 'minimal',
-      contentfilter: 'medium',
-    })
-    const res  = await fetch(`https://tenor.googleapis.com/v2/search?${p}&key=AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCyk`)
-    if (res.ok) {
-      const data = await res.json()
-      const results = data?.results ?? []
-      if (results.length) {
-        const pick = results[Math.floor(Math.random() * results.length)]
-        const url  = pick?.media_formats?.gif?.url ?? pick?.media_formats?.tinygif?.url
-        if (url) { memSet(cacheKey, { url, tag }, 10 * 60 * 1000); return { url, tag } }
+  if (!pool?.length) {
+    try {
+      const p = new URLSearchParams({
+        q:       tag,
+        limit:   50,
+        media_filter: 'minimal',
+        contentfilter: 'medium',
+      })
+      const res  = await fetch(`https://tenor.googleapis.com/v2/search?${p}&key=AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCyk`)
+      if (res.ok) {
+        const data = await res.json()
+        pool = (data?.results ?? [])
+          .map(r => r?.media_formats?.gif?.url ?? r?.media_formats?.tinygif?.url)
+          .filter(Boolean)
+        if (pool.length) memSet(poolKey, pool, 5 * 60 * 1000)
       }
-    }
-  } catch {}
+    } catch {}
+  }
+
+  if (pool?.length) {
+    const url = pool[Math.floor(Math.random() * pool.length)]
+    return { url, tag }
+  }
 
   // Fallback: Giphy public beta endpoint
   try {

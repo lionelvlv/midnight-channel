@@ -136,12 +136,12 @@ export function useAnomaly(anomalyChance = BASE_CHANCE) {
   // Prefetch a pool of live content
   async function prefetchApiData() {
     try {
-      const [g1, g2, g3, a1, a2, q1, q2, q3, q4, q5] = await Promise.allSettled([
-        fetchGif('creepy'), fetchGif('eerie'), fetchGif('analog'),
+      const [g1, g2, g3, g4, a1, a2, q1, q2, q3, q4, q5] = await Promise.allSettled([
+        fetchGif('creepy'), fetchGif('eerie'), fetchGif('analog'), fetchGif('surreal'),
         fetchAsciiArt(), fetchAsciiArt(),
         fetchQuote(), fetchQuote(), fetchQuote(), fetchQuote(), fetchQuote(),
       ])
-      const gifs  = [g1,g2,g3].filter(r=>r.status==='fulfilled'&&r.value).map(r=>r.value)
+      const gifs  = [g1,g2,g3,g4].filter(r=>r.status==='fulfilled'&&r.value).map(r=>r.value)
       const arts  = [a1,a2].filter(r=>r.status==='fulfilled'&&r.value).map(r=>r.value)
       const quotes= [q1,q2,q3,q4,q5].filter(r=>r.status==='fulfilled'&&r.value).map(r=>r.value)
       prefetchedRef.current = { gifs, asciiArts: arts, quotes, fetchedAt: Date.now() }
