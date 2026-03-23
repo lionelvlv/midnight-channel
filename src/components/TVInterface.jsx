@@ -1080,7 +1080,7 @@ export function TVInterface() {
               onFullscreen={handleFullscreen}
             />
             <div className="key-hint">
-              ← → or A/D &nbsp;·&nbsp; Space pause &nbsp;·&nbsp; F filter &nbsp;·&nbsp; G gif debug &nbsp;·&nbsp; <span className="key-hint-tab">TAB</span> hide
+              ← → or A/D &nbsp;·&nbsp; Space pause &nbsp;·&nbsp; F filter &nbsp;·&nbsp;·&nbsp; <span className="key-hint-tab">TAB</span> hide
             </div>
           </div>
         </div>
