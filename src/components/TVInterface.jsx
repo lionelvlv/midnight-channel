@@ -225,7 +225,8 @@ const DEFAULT_FILTER = {
   genreId: 'any', yearEnabled: false,
   yearFrom: 2000, yearTo: new Date().getFullYear(),
   includeTags: [], excludeTags: [],
-  sourceWeights: null,  // null = use defaults from VIDEO_SOURCES
+  sourceWeights: null,
+  anomalyChance: 0.028,  // default 2.8% per flip
 }
 
 // ═══════════════════════════════════════════════
@@ -233,12 +234,11 @@ const DEFAULT_FILTER = {
 // ═══════════════════════════════════════════════
 export function TVInterface() {
   const { goNext, goPrev, setFilterConfig } = useChannel()
-  const { check: checkAnomaly, buildData: buildAnomalyData } = useAnomaly()
+  const { check: checkAnomaly, buildData: buildAnomalyData } = useAnomaly(filterConfig.anomalyChance ?? 0.028)
 
   const [videoSrc,      setVideoSrc]      = useState('')
   const [videoSource,   setVideoSource]   = useState('youtube')
-  const [currentVideo,  setCurrentVideo]  = useState(null)   // full video object for copy-link
-  const [copied,        setCopied]        = useState(false)  // flash state for copy feedback
+  const [currentVideo,  setCurrentVideo]  = useState(null)   // tracks current video for source link
   const [isSwitching,   setIsSwitching]   = useState(false)
   const [osd,           setOsd]           = useState({ visible: false, channel: '', status: '' })
   const [screenWarped,  setScreenWarped]  = useState(false)
@@ -246,16 +246,17 @@ export function TVInterface() {
   const [screenAnomaly, setScreenAnomaly] = useState(null)
   const [anomalyData,   setAnomalyData]   = useState(null)
   const [volume,        setVolume]        = useState(80)
+  const [volumeFlash,   setVolumeFlash]   = useState(false)
   const [isPlaying,     setIsPlaying]     = useState(true)
   const [showFilter,    setShowFilter]    = useState(false)
   const [filterConfig,  setFilterConfig_] = useState(DEFAULT_FILTER)
   const [sessionAge,    setSessionAge]    = useState(0)
   // UI fade
   const [uiVisible,     setUiVisible]     = useState(true)
-  const [uiHidden,      setUiHidden]      = useState(false) // tab keybind
+  const [uiHidden,      setUiHidden]      = useState(false)
+  const [isFullscreen,  setIsFullscreen]  = useState(false)
 
   const iframeRef       = useRef(null)
-  const videoRef        = useRef(null)   // for native <video> elements (wikimedia)
   const staticCanvasRef = useRef(null)
   const grainCanvasRef  = useRef(null)
   const grainInterval   = useRef(null)
@@ -265,6 +266,7 @@ export function TVInterface() {
   const osdTimer        = useRef(null)
   const anomalyTimer    = useRef(null)
   const uiTimer         = useRef(null)
+  const volumeFlashTimer= useRef(null)
   const volumeRef       = useRef(volume)
   volumeRef.current = volume
 
@@ -306,18 +308,6 @@ export function TVInterface() {
   useEffect(() => {
     // YouTube / Archive / Dailymotion iframes (YouTube uses postMessage API)
     if (iframeRef.current) setIframeVolume(iframeRef.current, volume)
-    // Wikimedia native <video> — set volume directly on DOM node
-    if (videoRef.current) {
-      const el = videoRef.current
-      el.volume = volume / 100
-      if (volume === 0) {
-        el.muted = true
-      } else {
-        // Must remove the muted attribute AND set .muted = false for all browsers
-        el.muted = false
-        el.removeAttribute('muted')
-      }
-    }
     if (humStarted.current) setHumVolume(volume === 0 ? 0 : (sessionAge >= 5 ? 0.1 : 0.06))
   }, [volume, sessionAge])
 
@@ -355,7 +345,6 @@ export function TVInterface() {
       if (e.key === 'ArrowLeft'  || e.key === 'a' || e.key === 'A') { e.preventDefault(); handleSwitch('prev') }
       if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') { e.preventDefault(); handleSwitch('next') }
       if (e.key === 'f'          || e.key === 'F') { e.preventDefault(); setShowFilter(v => !v) }
-      if (e.key === 'c'          || e.key === 'C') { e.preventDefault(); handleCopyLink() }
       if (e.key === ' ')                           { e.preventDefault(); handlePlayPause() }
     }
     window.addEventListener('keydown', onKey)
@@ -395,10 +384,6 @@ export function TVInterface() {
     if (video.source === 'archive') {
       // archive.org embed: suppress their header/controls, autoplay
       return `https://archive.org/embed/${video.id.videoId}?autoplay=1&start=0&output=embed`
-    }
-
-    if (video.source === 'wikimedia') {
-      return video.url ?? ''  // direct MP4/WebM — volume set via videoRef after mount
     }
 
     if (video.source === 'dailymotion') {
@@ -444,9 +429,6 @@ export function TVInterface() {
     if (video.source === 'archive') {
       return `https://archive.org/details/${video.id.videoId}`
     }
-    if (video.source === 'wikimedia') {
-      return `https://commons.wikimedia.org/wiki/File:${encodeURIComponent(video.id.videoId)}`
-    }
     if (video.source === 'dailymotion') {
       return `https://www.dailymotion.com/video/${video.id.videoId}`
     }
@@ -455,39 +437,19 @@ export function TVInterface() {
     return vid ? `https://www.youtube.com/watch?v=${vid}` : null
   }
 
-  // ── Copy canonical URL to clipboard ──
-  const copiedTimerRef = useRef(null)
-  function handleCopyLink() {
-    const url = getCanonicalUrl(currentVideo)
-    if (!url) return
-    try {
-      navigator.clipboard.writeText(url).then(() => {
-        setCopied(true)
-        clearTimeout(copiedTimerRef.current)
-        copiedTimerRef.current = setTimeout(() => setCopied(false), 2200)
-      })
-    } catch {
-      // Fallback for browsers without clipboard API
-      const el = document.createElement('textarea')
-      el.value = url; el.style.position = 'fixed'; el.style.opacity = '0'
-      document.body.appendChild(el); el.select()
-      document.execCommand('copy')
-      document.body.removeChild(el)
-      setCopied(true)
-      clearTimeout(copiedTimerRef.current)
-      copiedTimerRef.current = setTimeout(() => setCopied(false), 2200)
-    }
+
+  // ── Volume change → CRT flash effect ────────────────────────────────────
+  function handleVolumeChange(v) {
+    setVolume(v)
+    setVolumeFlash(true)
+    clearTimeout(volumeFlashTimer.current)
+    volumeFlashTimer.current = setTimeout(() => setVolumeFlash(false), 600)
   }
 
   // ── Play / Pause ──────────────────────────────────────────────────────────
   function handlePlayPause() {
     const next = !isPlaying
     setIsPlaying(next)
-
-    // Native <video> (Wikimedia)
-    if (videoRef.current) {
-      next ? videoRef.current.play() : videoRef.current.pause()
-    }
 
     // YouTube iframe — postMessage API
     if (videoSource === 'youtube' && iframeRef.current) {
@@ -510,6 +472,21 @@ export function TVInterface() {
       }
     }
   }
+
+  // ── Fullscreen ────────────────────────────────────────────────────────────
+  function handleFullscreen() {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen?.().catch(() => {})
+    } else {
+      document.exitFullscreen?.().catch(() => {})
+    }
+  }
+
+  useEffect(() => {
+    function onFsChange() { setIsFullscreen(!!document.fullscreenElement) }
+    document.addEventListener('fullscreenchange', onFsChange)
+    return () => document.removeEventListener('fullscreenchange', onFsChange)
+  }, [])
 
   const handleSwitch = useCallback(async (direction) => {
     if (switchingRef.current) return
@@ -610,24 +587,13 @@ export function TVInterface() {
     const t = setTimeout(() => {
       // Iframe sources (YouTube postMessage volume)
       if (iframeRef.current) setIframeVolume(iframeRef.current, volumeRef.current)
-      // Native video element (Wikimedia) — unmute after autoplay starts
-      if (videoRef.current) {
-        const el = videoRef.current
-        el.volume = volumeRef.current / 100
-        if (volumeRef.current > 0) {
-          el.muted = false
-          el.removeAttribute('muted')
-        }
-      }
     }, 400)
     return () => clearTimeout(t)
   }, [videoSrc])
 
   useEffect(() => { handleSwitch('next') }, []) // eslint-disable-line
 
-  function handleFilterApply({ genreId, genre, searchOpts, sourceWeights: sw }) {
-    // sw = [{id, weight, enabled}] from FilterPanel — contains the full enabled state
-    // Convert to active weights for useChannel (disabled sources get weight 0)
+  function handleFilterApply({ genreId, genre, searchOpts, sourceWeights: sw, anomalyChance }) {
     const activeWeights = sw
       ? sw.map(s => ({ id: s.id, weight: (s.enabled !== false) ? s.weight : 0 }))
       : null
@@ -639,7 +605,8 @@ export function TVInterface() {
       yearTo:        searchOpts.publishedBefore ? parseInt(searchOpts.publishedBefore) : new Date().getFullYear(),
       includeTags:   searchOpts.includeTags  ?? [],
       excludeTags:   searchOpts.excludeTags  ?? [],
-      sourceWeights: sw ?? null,  // store full objects so panel re-opens with correct state
+      sourceWeights: sw ?? null,
+      anomalyChance: anomalyChance ?? 0.028,
     }
     setFilterConfig_(newConfig)
     setFilterConfig({ seeds: genre?.seeds ?? null, searchOpts, sourceWeights: activeWeights })
@@ -953,26 +920,11 @@ export function TVInterface() {
                         allow="autoplay; encrypted-media" allowFullScreen
                         title="Night Channel"
                       />
-                      {/* Hides the YouTube watermark logo in the bottom-right corner */}
-                      <div className="yt-logo-mask" />
                       {/* Transparent overlay catches pointer events so YT UI never appears */}
                       <div className="yt-ui-blocker" onClick={() => handleSwitch('next')} />
                     </>
                   )}
 
-                  {videoSrc && videoSource === 'wikimedia' && (
-                    <video
-                      ref={videoRef}
-                      key={videoSrc}
-                      className="tv-iframe"
-                      src={videoSrc}
-                      autoPlay
-                      muted        // always start muted — volume useEffect unmutes after interaction
-                      loop
-                      playsInline
-                      style={{ objectFit: 'cover' }}
-                    />
-                  )}
 
                   {videoSrc && (videoSource === 'archive' || videoSource === 'dailymotion') && (
                     <iframe
@@ -992,6 +944,7 @@ export function TVInterface() {
                   <div className="crt-gloss"     />
                   <canvas ref={grainCanvasRef}  className="crt-grain"     />
                   <canvas ref={staticCanvasRef} className="static-canvas" />
+                  {volumeFlash && <div className="vol-flash" />}
 
                   <div className={`osd${osd.visible ? '' : ' hidden'}`}>
                     <span className="osd-channel">{osd.channel}</span>
@@ -1000,15 +953,17 @@ export function TVInterface() {
                   </div>
 
                   {currentVideo && !isSwitching && (
-                    <button
-                      className={`copy-link-btn${copied ? ' copy-done' : ''}`}
-                      onClick={handleCopyLink}
-                      title="Copy link to this video (C)"
-                      aria-label="Copy link"
+                    <a
+                      className={`link-btn${uiVisible && !uiHidden ? ' link-visible' : ''}`}
+                      href={getCanonicalUrl(currentVideo)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Open original video"
+                      aria-label="Open source"
                     >
-                      <span className="copy-icon">{copied ? '✓' : '🔗'}</span>
-                      <span className="copy-label">{copied ? 'COPIED!' : 'LINK'}</span>
-                    </button>
+                      <span className="link-icon">🔗</span>
+                      <span className="link-label">SOURCE</span>
+                    </a>
                   )}
 
                 </div>
@@ -1026,14 +981,16 @@ export function TVInterface() {
           <div className={`ui-fade-group${uiClass}`}>
             <ControlBar
               volume={volume}
-              onVolumeChange={setVolume}
+              onVolumeChange={handleVolumeChange}
               filterConfig={filterConfig}
               onFilterOpen={() => setShowFilter(true)}
               isPlaying={isPlaying}
               onPlayPause={handlePlayPause}
+              isFullscreen={isFullscreen}
+              onFullscreen={handleFullscreen}
             />
             <div className="key-hint">
-              ← → or A/D &nbsp;·&nbsp; Space pause &nbsp;·&nbsp; F filter &nbsp;·&nbsp; C copy &nbsp;·&nbsp; <span className="key-hint-tab">TAB</span> hide
+              ← → or A/D &nbsp;·&nbsp; Space pause &nbsp;·&nbsp; F filter &nbsp;·&nbsp; <span className="key-hint-tab">TAB</span> hide
             </div>
           </div>
         </div>

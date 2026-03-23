@@ -132,3 +132,22 @@
   min-width: 26px; text-align: right;
   text-shadow: 0 0 4px rgba(0,224,64,0.3);
 }
+
+/* ── Fullscreen button ── */
+.ctrl-fullscreen {
+  padding: 6px 10px;
+  min-width: 34px;
+  justify-content: center;
+}
+.fs-icon {
+  width: 13px; height: 13px;
+  fill: none;
+  stroke: rgba(255,255,255,0.55);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: stroke 0.15s;
+  display: block;
+}
+.ctrl-fullscreen:hover .fs-icon { stroke: rgba(255,255,255,0.95); }
+.ctrl-fullscreen.ctrl-active .fs-icon { stroke: var(--green-osd); }

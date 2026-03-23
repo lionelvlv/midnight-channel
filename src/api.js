@@ -216,75 +216,6 @@ export async function dailymotionSearch(tags = []) {
 }
 
 // ─────────────────────────────────────────────
-//  WIKIMEDIA COMMONS (free video files)
-// ─────────────────────────────────────────────
-export const WIKI_QUERIES = [
-  'documentary film',
-  'nature film',
-  'historical footage',
-  'science animation',
-  'educational film',
-  'wildlife',
-  'aviation',
-  'spacecraft',
-  'ocean',
-  'volcano',
-]
-
-export async function wikimediaSearch(query) {
-  const cacheKey = `wiki:${query}`
-  const cached   = cacheGet(cacheKey, ARCH_TTL)
-  if (cached) return cached
-
-  return dedupe(cacheKey, async () => {
-    try {
-      const p = new URLSearchParams({
-        action:   'query',
-        list:     'search',
-        srsearch: `${query} filetype:webm OR filetype:ogv OR filetype:mp4`,
-        srnamespace: 6,   // File namespace
-        srlimit:  20,
-        format:   'json',
-        origin:   '*',
-      })
-      const res  = await fetch(`https://commons.wikimedia.org/w/api.php?${p}`)
-      if (!res.ok) return null
-      const data = await res.json()
-      const titles = (data?.query?.search ?? []).map(r => r.title)
-
-      // Get direct file URLs via imageinfo
-      if (!titles.length) return null
-      const infoP = new URLSearchParams({
-        action:  'query',
-        titles:  titles.join('|'),
-        prop:    'imageinfo',
-        iiprop:  'url|mime',
-        format:  'json',
-        origin:  '*',
-      })
-      const infoRes  = await fetch(`https://commons.wikimedia.org/w/api.php?${infoP}`)
-      if (!infoRes.ok) return null
-      const infoData = await infoRes.json()
-      const pages    = Object.values(infoData?.query?.pages ?? {})
-      const items    = pages
-        .filter(p => {
-          const mime = p?.imageinfo?.[0]?.mime ?? ''
-          return mime.startsWith('video/')
-        })
-        .map(p => ({
-          source:  'wikimedia',
-          id:      { videoId: p.title.replace('File:', '') },
-          url:     p.imageinfo[0].url,
-          snippet: { title: p.title.replace('File:', '').replace(/_/g, ' '), description: '' },
-        }))
-
-      if (items.length) cacheSet(cacheKey, items, ARCH_TTL)
-      return items.length ? items : null
-    } catch { return null }
-  })
-}
-
-// ─────────────────────────────────────────────
 //  CONTENT APIs FOR ANOMALY EVENTS
 // ─────────────────────────────────────────────
 
@@ -390,4 +321,83 @@ export async function warmCache(seeds, opts = {}) {
   if (!seeds?.length) return
   const picks = [...seeds].sort(() => Math.random() - 0.5).slice(0, 4)
   await Promise.allSettled(picks.map(seed => ytSearch(seed, opts)))
+}
+
+// ─────────────────────────────────────────────
+//  GIPHY — random themed GIFs (no key needed with public beta)
+//  Uses public endpoint that works without auth for reasonable usage
+// ─────────────────────────────────────────────
+const GIPHY_TAGS = {
+  creepy:  ['horror','glitch','static','disturbing','weird','trippy','analog','vhs'],
+  eerie:   ['ghost','paranormal','haunted','spooky','fog','dark','watching'],
+  analog:  ['television','static','broadcast','signal','old tv','noise'],
+  surreal: ['surreal','bizarre','uncanny','strange','dreamlike','liminal'],
+}
+
+export async function fetchGif(mood = 'creepy') {
+  const tags = GIPHY_TAGS[mood] ?? GIPHY_TAGS.creepy
+  const tag  = tags[Math.floor(Math.random() * tags.length)]
+  const cacheKey = `gif:${mood}:${tag}:${Math.floor(Date.now() / (10 * 60 * 1000))}` // 10min cache slot
+  const cached = memGet(cacheKey)
+  if (cached) return cached
+
+  try {
+    // Tenor public API — no key required
+    const p = new URLSearchParams({
+      q:       tag,
+      limit:   20,
+      media_filter: 'minimal',
+      contentfilter: 'medium',
+    })
+    const res  = await fetch(`https://tenor.googleapis.com/v2/search?${p}&key=AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCyk`)
+    if (res.ok) {
+      const data = await res.json()
+      const results = data?.results ?? []
+      if (results.length) {
+        const pick = results[Math.floor(Math.random() * results.length)]
+        const url  = pick?.media_formats?.gif?.url ?? pick?.media_formats?.tinygif?.url
+        if (url) { memSet(cacheKey, { url, tag }, 10 * 60 * 1000); return { url, tag } }
+      }
+    }
+  } catch {}
+
+  // Fallback: Giphy public beta endpoint
+  try {
+    const p = new URLSearchParams({ tag, rating: 'pg-13', api_key: 'dc6zaTOxFJmzC' }) // public beta key
+    const res  = await fetch(`https://api.giphy.com/v1/gifs/random?${p}`)
+    if (res.ok) {
+      const data = await res.json()
+      const url  = data?.data?.images?.original?.url ?? data?.data?.images?.fixed_height?.url
+      if (url) { memSet(cacheKey, { url, tag }, 10 * 60 * 1000); return { url, tag } }
+    }
+  } catch {}
+
+  return null
+}
+
+// ─────────────────────────────────────────────
+//  ASCII ART — from textart.io / artii API
+// ─────────────────────────────────────────────
+const ASCII_WORDS = [
+  'SIGNAL', 'WATCH', 'HELLO', 'ERROR', 'STATIC',
+  'NOISE', 'FOUND', 'LOST', 'WAIT', 'STAY',
+  'RUN', 'SLEEP', 'DREAM', 'DARK', 'WAKE',
+]
+
+export async function fetchAsciiArt() {
+  const word = ASCII_WORDS[Math.floor(Math.random() * ASCII_WORDS.length)]
+  const cacheKey = `ascii:${word}`
+  const cached   = memGet(cacheKey)
+  if (cached) return cached
+  try {
+    // artii.me — free ASCII art API, no key
+    const res  = await fetch(`https://artii.me/make?text=${encodeURIComponent(word)}&font=banner`)
+    if (!res.ok) throw new Error()
+    const text = await res.text()
+    if (text && text.trim().length > 5) {
+      memSet(cacheKey, { art: text, word }, 60 * 60 * 1000)
+      return { art: text, word }
+    }
+  } catch {}
+  return null
 }

@@ -186,6 +186,7 @@ export function FilterPanel({ config, onApply, onClose }) {
   const [sourceWeights, setSourceWeights] = useState(
     config.sourceWeights ?? VIDEO_SOURCES.map(s => ({ id: s.id, weight: s.defaultWeight, enabled: true }))
   )
+  const [anomalyChance, setAnomalyChance] = useState(config.anomalyChance ?? 0.028)
 
   function addTag(list, setList, input, setInput) {
     const t = input.trim().toLowerCase().replace(/\s+/g, ' ')
@@ -219,7 +220,7 @@ export function FilterPanel({ config, onApply, onClose }) {
     if (preset.config.includeTags.length) searchOpts.includeTags = preset.config.includeTags
     if (preset.config.excludeTags.length) searchOpts.excludeTags = preset.config.excludeTags
     // Send the full sourceWeights state (including enabled flag) — TVInterface converts to active weights
-    onApply({ genreId: preset.config.genreId, genre: preset.seeds ? { seeds: preset.seeds } : genre, searchOpts, sourceWeights })
+    onApply({ genreId: preset.config.genreId, genre: preset.seeds ? { seeds: preset.seeds } : genre, searchOpts, sourceWeights, anomalyChance })
     onClose()
   }
 
@@ -235,7 +236,7 @@ export function FilterPanel({ config, onApply, onClose }) {
     if (includeTags.length) searchOpts.includeTags = includeTags
     if (excludeTags.length) searchOpts.excludeTags = excludeTags
     // Send the full sourceWeights state (including enabled flag) — TVInterface converts to active weights
-    onApply({ genreId, genre, searchOpts, sourceWeights })
+    onApply({ genreId, genre, searchOpts, sourceWeights, anomalyChance })
     onClose()
   }
 
@@ -392,6 +393,26 @@ export function FilterPanel({ config, onApply, onClose }) {
                   </div>
                 )}
               </div>
+
+              {/* ── Anomaly Chance ── */}
+              <div className="filter-section">
+                <div className="filter-section-label">WEIRD EVENTS FREQUENCY</div>
+                <div className="filter-hint-sub">How often random anomaly events interrupt the broadcast</div>
+                <div className="anomaly-chance-row">
+                  <span className="anomaly-chance-label">NEVER</span>
+                  <input
+                    type="range"
+                    className="anomaly-chance-slider"
+                    min={0} max={0.12} step={0.004}
+                    value={anomalyChance}
+                    onChange={e => setAnomalyChance(Number(e.target.value))}
+                  />
+                  <span className="anomaly-chance-label">OFTEN</span>
+                  <span className="anomaly-chance-val">
+                    {anomalyChance === 0 ? 'OFF' : anomalyChance <= 0.02 ? 'RARE' : anomalyChance <= 0.055 ? 'DEFAULT' : anomalyChance <= 0.085 ? 'FREQUENT' : 'CONSTANT'}
+                  </span>
+                </div>
+              </div>
             </>
           )}
 
@@ -445,7 +466,7 @@ export function FilterPanel({ config, onApply, onClose }) {
                 setGenreId('any'); setYearEnabled(false)
                 setYearFrom(2000); setYearTo(MAX_YEAR)
                 setIncludeTags([]); setExcludeTags([])
-                setActivePreset(null)
+                setActivePreset(null); setAnomalyChance(0.028)
               }}>
                 RESET ALL
               </button>

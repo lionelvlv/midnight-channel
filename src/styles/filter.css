@@ -394,3 +394,53 @@
   text-align: right;
   flex-shrink: 0;
 }
+
+/* ── Anomaly Chance Slider ── */
+.anomaly-chance-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+.anomaly-chance-label {
+  font-family: var(--font-mono);
+  font-size: 7px;
+  color: rgba(255,255,255,0.2);
+  letter-spacing: 1px;
+  flex-shrink: 0;
+}
+.anomaly-chance-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 2px;
+  background: rgba(255,255,255,0.1);
+  outline: none;
+  cursor: pointer;
+  border-radius: 0;
+}
+.anomaly-chance-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: rgba(0,224,64,0.7);
+  cursor: pointer;
+  border: 1px solid rgba(0,224,64,0.4);
+  box-shadow: 0 0 4px rgba(0,224,64,0.3);
+}
+.anomaly-chance-slider::-moz-range-thumb {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: rgba(0,224,64,0.7);
+  cursor: pointer;
+  border: 1px solid rgba(0,224,64,0.4);
+}
+.anomaly-chance-val {
+  font-family: var(--font-mono);
+  font-size: 7px;
+  color: rgba(0,224,64,0.55);
+  letter-spacing: 1.5px;
+  min-width: 52px;
+  text-align: right;
+  flex-shrink: 0;
+}

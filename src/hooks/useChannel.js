@@ -1,9 +1,9 @@
 // src/hooks/useChannel.js — multi-source, randomness-first pool management
 import { useRef, useCallback, useEffect } from 'react'
 import {
-  ytSearch, archiveSearch, dailymotionSearch, wikimediaSearch,
+  ytSearch, archiveSearch, dailymotionSearch,
   isYouTubeExhausted, warmCache,
-  DM_TAG_GROUPS, WIKI_QUERIES,
+  DM_TAG_GROUPS,
 } from '../api'
 
 // ─────────────────────────────────────────────
@@ -57,10 +57,9 @@ const ARCHIVE_SEEDS = [
 //  a weight (relative probability), and fetcher
 // ─────────────────────────────────────────────
 export const VIDEO_SOURCES = [
-  { id: 'youtube',    label: 'YouTube',          defaultWeight: 55 },
+  { id: 'youtube',    label: 'YouTube',          defaultWeight: 65 },
   { id: 'archive',    label: 'Internet Archive', defaultWeight: 20 },
   { id: 'dailymotion',label: 'Dailymotion',      defaultWeight: 15 },
-  { id: 'wikimedia',  label: 'Wikimedia',        defaultWeight: 10 },
 ]
 
 // ─────────────────────────────────────────────
@@ -120,7 +119,6 @@ export function useChannel() {
   const seedQueueRef   = useRef(makeSeedQueue(DEFAULT_SEEDS))
   const archQueueRef   = useRef(makeSeedQueue(ARCHIVE_SEEDS))
   const dmQueueRef     = useRef(makeSeedQueue(DM_TAG_GROUPS))
-  const wikiQueueRef   = useRef(makeSeedQueue(WIKI_QUERIES))
   const searchOptsRef  = useRef({})
   const ytExhaustedRef = useRef(false)
   const seenIdsRef     = useRef(new Set())
@@ -229,22 +227,6 @@ export function useChannel() {
     return items
   }
 
-  async function fillFromWikimedia() {
-    const opts  = searchOptsRef.current
-    // Build query from include keywords or genre seeds
-    let query = wikiQueueRef.current.next()
-    if (opts.includeTags?.length) query = opts.includeTags.slice(0, 2).join(' ')
-    const gSeeds = opts._genreSeeds
-    if (gSeeds?.length && Math.random() < 0.5) {
-      query = gSeeds[Math.floor(Math.random() * gSeeds.length)].split(' ').slice(0, 2).join(' ')
-    }
-    const raw = await wikimediaSearch(query)
-    if (!raw?.length) return []
-    const exc = opts.excludeTags ?? []
-    return raw
-      .filter(i => !seenIdsRef.current.has(i.id.videoId) && videoPassesFilter(i, exc))
-      .map(i => { seenIdsRef.current.add(i.id.videoId); return i })
-  }
 
   // ─────────────────────────────────────────
   //  fillPool — weighted random source selection
@@ -270,7 +252,6 @@ export function useChannel() {
         youtube:     () => fillFromYouTube(),
         archive:     () => fillFromArchive(),
         dailymotion: () => fillFromDailymotion(),
-        wikimedia:   () => fillFromWikimedia(),
       }
 
       const results = await Promise.allSettled(chosen.map(src => fetchers[src]?.()))

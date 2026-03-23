@@ -1,6 +1,6 @@
 // src/hooks/useAnomaly.js — 30 atmospheric horror events, many pulling from live APIs
 import { useRef, useEffect } from 'react'
-import { fetchJoke, fetchFact, fetchAdvice, fetchWeatherFact, fetchNumberFact } from '../api'
+import { fetchJoke, fetchFact, fetchAdvice, fetchWeatherFact, fetchNumberFact, fetchGif, fetchAsciiArt } from '../api'
 
 // ─────────────────────────────────────────────
 //  ANOMALY REGISTRY
@@ -220,16 +220,42 @@ export const EERIE_GIFS = [
   { url: 'https://media.giphy.com/media/3o6MbdRAwIFJN3KXyE/giphy.gif', msg: 'STILL TRANSMITTING' },
 ]
 
+// Cryptic messages for live GIFs (randomized per fire)
+export const GIF_MSGS = {
+  creepy: [
+    'SEARCHING FOR SIGNAL...',
+    'STILL TRANSMITTING',
+    'DO NOT CHANGE THE CHANNEL',
+    'SIGNAL INTERRUPTED',
+    'DO YOU SEE IT TOO?',
+    'THIS PROGRAM HAS ENDED',
+    'PLEASE STAND BY',
+    'WE ARE STILL HERE',
+    'LOADING NEXT REALITY...',
+    'RECEIVING...',
+  ],
+  eerie: [
+    'IT IS WATCHING',
+    'HELLO AGAIN',
+    'YOU CANNOT LOOK AWAY',
+    'WE HAVE ALWAYS BEEN HERE',
+    'FOUND YOU',
+    'DO NOT ADJUST YOUR SET',
+    'THE SIGNAL PERSISTS',
+    'ARE YOU STILL THERE?',
+  ],
+}
+
 // ─────────────────────────────────────────────
 //  PROBABILITY CONFIG
 // ─────────────────────────────────────────────
-const BASE_CHANCE  = 0.028   // ~2.8% per flip
+const BASE_CHANCE  = 0.028   // ~2.8% per flip — overrideable via anomalyChance prop
 const MIN_COOLDOWN = 10      // min flips between anomalies
 
 // ─────────────────────────────────────────────
 //  HOOK
 // ─────────────────────────────────────────────
-export function useAnomaly() {
+export function useAnomaly(anomalyChance = BASE_CHANCE) {
   const flipCountRef       = useRef(0)
   const lastAnomalyFlipRef = useRef(-MIN_COOLDOWN)
   // Pre-fetched API data so overlays render instantly
@@ -238,15 +264,29 @@ export function useAnomaly() {
   // Background prefetch API data so it's ready when anomaly fires
   async function prefetchApiData() {
     try {
-      const [joke, fact, advice, weather, numFact] = await Promise.allSettled([
-        fetchJoke(), fetchFact(), fetchAdvice(), fetchWeatherFact(), fetchNumberFact()
+      const [joke, fact, advice, weather, numFact, creepyGif, eerieGif, analogGif, surrealGif, asciiArt] = await Promise.allSettled([
+        fetchJoke(),
+        fetchFact(),
+        fetchAdvice(),
+        fetchWeatherFact(),
+        fetchNumberFact(),
+        fetchGif('creepy'),
+        fetchGif('eerie'),
+        fetchGif('analog'),
+        fetchGif('surreal'),
+        fetchAsciiArt(),
       ])
       prefetchedRef.current = {
-        joke:    joke.status    === 'fulfilled' ? joke.value    : null,
-        fact:    fact.status    === 'fulfilled' ? fact.value    : null,
-        advice:  advice.status  === 'fulfilled' ? advice.value  : null,
-        weather: weather.status === 'fulfilled' ? weather.value : null,
-        numFact: numFact.status === 'fulfilled' ? numFact.value : null,
+        joke:       joke.status      === 'fulfilled' ? joke.value      : null,
+        fact:       fact.status      === 'fulfilled' ? fact.value      : null,
+        advice:     advice.status    === 'fulfilled' ? advice.value    : null,
+        weather:    weather.status   === 'fulfilled' ? weather.value   : null,
+        numFact:    numFact.status   === 'fulfilled' ? numFact.value   : null,
+        creepyGif:  creepyGif.status === 'fulfilled' ? creepyGif.value  : null,
+        eerieGif:   eerieGif.status  === 'fulfilled' ? eerieGif.value   : null,
+        analogGif:  analogGif.status === 'fulfilled' ? analogGif.value  : null,
+        surrealGif: surrealGif.status=== 'fulfilled' ? surrealGif.value : null,
+        asciiArt:   asciiArt.status  === 'fulfilled' ? asciiArt.value   : null,
         fetchedAt: Date.now(),
       }
     } catch {}
@@ -258,7 +298,7 @@ export function useAnomaly() {
     const since = flipCountRef.current - lastAnomalyFlipRef.current
     if (since < MIN_COOLDOWN) return null
 
-    const chance = BASE_CHANCE + Math.min(0.05, (since - MIN_COOLDOWN) * 0.003)
+    const chance = anomalyChance + Math.min(0.05, (since - MIN_COOLDOWN) * 0.003)
     if (Math.random() > chance) return null
 
     lastAnomalyFlipRef.current = flipCountRef.current
@@ -279,14 +319,25 @@ export function useAnomaly() {
       case 'broadcast_warning':
         return { warning: BROADCAST_WARNINGS[Math.floor(Math.random() * BROADCAST_WARNINGS.length)] }
 
-      case 'ascii_face':
+      case 'ascii_face': {
+        // Use live ASCII art from API, fall back to hand-crafted faces
+        const live = p.asciiArt
+        if (live?.art) return { face: live.art, word: live.word }
         return { face: ASCII_FACES[Math.floor(Math.random() * ASCII_FACES.length)] }
+      }
 
-      case 'static_gif':
+      case 'static_gif': {
+        // Cycle through live GIF sources — analog/creepy themed
+        const gif = p.analogGif ?? p.creepyGif
+        if (gif?.url) return { gif: { url: gif.url, msg: GIF_MSGS.creepy[Math.floor(Math.random() * GIF_MSGS.creepy.length)] } }
         return { gif: CREEPY_GIFS[Math.floor(Math.random() * CREEPY_GIFS.length)] }
+      }
 
-      case 'eerie_gif':
+      case 'eerie_gif': {
+        const gif = p.eerieGif ?? p.surrealGif ?? p.creepyGif
+        if (gif?.url) return { gif: { url: gif.url, msg: GIF_MSGS.eerie[Math.floor(Math.random() * GIF_MSGS.eerie.length)] } }
         return { gif: EERIE_GIFS[Math.floor(Math.random() * EERIE_GIFS.length)] }
+      }
 
       case 'late_night_joke':
         return { joke: p.joke ?? "Why did the TV turn itself on?\n\nBecause it never really turns off." }

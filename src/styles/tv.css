@@ -276,26 +276,9 @@
   z-index: 1;
 }
 
-/* YouTube-specific: revert to base scale (don't distort content).
-   The logo is hidden via .yt-logo-mask overlay instead. */
+/* YouTube-specific: same scale as base — logo is just left visible */
 .tv-iframe-yt {
-  transform: scale(1.02);  /* same as base — no extra zoom */
-}
-
-/* Precise mask that covers only the YouTube watermark area (bottom-right ~100x30px).
-   Sits between the iframe (z:1) and CRT scanlines (z:5), so scanlines overlay it naturally. */
-.yt-logo-mask {
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 120px;
-  height: 40px;
-  background: #000;
-  z-index: 2;
-  pointer-events: none;
-  /* Fade edges so it doesn't look like a hard crop */
-  -webkit-mask-image: linear-gradient(to top-left, black 40%, transparent 100%);
-  mask-image: linear-gradient(to top-left, black 40%, transparent 100%);
+  transform: scale(1.02);
 }
 
 /* ── CRT layers ── */
@@ -1299,54 +1282,64 @@
 }
 
 /* ═══════════════════════════════════════════════
-   COPY LINK BUTTON
-   Sits bottom-right inside the screen, above CRT layers.
-   Fades with the UI idle system.
+   SOURCE LINK BUTTON
+   Bottom-right of screen. Hides when UI is idle,
+   reappears on mouse movement.
    ═══════════════════════════════════════════════ */
-.copy-link-btn {
+.link-btn {
   position: absolute;
   bottom: 10px;
   right: 10px;
   z-index: 18;
-  background: rgba(0,0,0,0.55);
-  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(0,0,0,0.6);
+  border: 1px solid rgba(255,255,255,0.15);
   padding: 5px 9px;
   cursor: pointer;
-  opacity: 0.35;           /* always somewhat visible */
-  transition: opacity 0.3s ease, border-color 0.2s, background 0.2s;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease, border-color 0.2s;
   display: flex;
   align-items: center;
   gap: 5px;
-  -webkit-tap-highlight-color: transparent;
   border-radius: 2px;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
 }
-.copy-link-btn:hover,
-.copy-link-btn.copy-visible {
-  opacity: 1;
+.link-btn.link-visible {
+  opacity: 0.55;
+  pointer-events: auto;
+}
+.link-btn:hover {
+  opacity: 1 !important;
   border-color: rgba(255,255,255,0.4);
-  background: rgba(0,0,0,0.75);
 }
-.copy-icon {
-  font-size: 11px;
+.link-icon {
+  font-size: 10px;
   line-height: 1;
-  opacity: 0.75;
-  transition: opacity 0.15s;
 }
-.copy-label {
+.link-label {
   font-family: var(--font-mono);
-  font-size: 8px;
-  letter-spacing: 1px;
-  color: rgba(255,255,255,0.65);
-  transition: color 0.15s;
+  font-size: 7px;
+  letter-spacing: 1.5px;
+  color: rgba(255,255,255,0.7);
   text-transform: uppercase;
 }
-.copy-link-btn.copy-done {
-  border-color: rgba(0,224,64,0.5);
-  background: rgba(0,224,64,0.08);
-  opacity: 1;
+
+/* ═══════════════════════════════════════════════
+   VOLUME FLASH — green CRT flicker on volume change
+   ═══════════════════════════════════════════════ */
+.vol-flash {
+  position: absolute;
+  inset: 0;
+  z-index: 19;
+  pointer-events: none;
+  border-radius: inherit;
+  background: rgba(0, 224, 64, 0.07);
+  box-shadow: inset 0 0 40px rgba(0, 224, 64, 0.12);
+  animation: vol-flash-fade 0.55s ease-out forwards;
 }
-.copy-link-btn.copy-done .copy-icon { opacity: 1; }
-.copy-link-btn.copy-done .copy-label {
-  color: var(--green-osd);
-  text-shadow: 0 0 6px rgba(0,224,64,0.4);
+@keyframes vol-flash-fade {
+  0%   { opacity: 1; }
+  40%  { opacity: 0.6; }
+  100% { opacity: 0; }
 }
