@@ -1,5 +1,5 @@
 // src/hooks/useAnomaly.js — live-composed anomaly events
-import { useRef, useEffect } from 'react'
+import { useRef } from 'react'
 import { fetchGif, fetchAsciiArt, fetchQuote } from '../api'
 
 // ─────────────────────────────────────────────
@@ -131,28 +131,6 @@ function rand(min, max) { return Math.floor(Math.random() * (max - min + 1)) + m
 export function useAnomaly(anomalyChance = BASE_CHANCE) {
   const flipCountRef       = useRef(0)
   const lastAnomalyFlipRef = useRef(-MIN_COOLDOWN)
-  const prefetchedRef      = useRef({ gifs: [], asciiArts: [], quotes: [], fetchedAt: 0 })
-
-  // Prefetch a pool of live content
-  async function prefetchApiData() {
-    try {
-      const [g1, g2, g3, g4, g5, a1, a2, q1, q2, q3, q4, q5] = await Promise.allSettled([
-        fetchGif(), fetchGif(), fetchGif(), fetchGif(), fetchGif(),
-        fetchAsciiArt(), fetchAsciiArt(),
-        fetchQuote(), fetchQuote(), fetchQuote(), fetchQuote(), fetchQuote(),
-      ])
-      const gifs  = [g1,g2,g3,g4,g5].filter(r=>r.status==='fulfilled'&&r.value).map(r=>r.value)
-      const arts  = [a1,a2].filter(r=>r.status==='fulfilled'&&r.value).map(r=>r.value)
-      const quotes= [q1,q2,q3,q4,q5].filter(r=>r.status==='fulfilled'&&r.value).map(r=>r.value)
-      prefetchedRef.current = { gifs, asciiArts: arts, quotes, fetchedAt: Date.now() }
-    } catch {}
-  }
-
-  useEffect(() => {
-    prefetchApiData()
-    const t = setInterval(prefetchApiData, 4 * 60 * 1000)
-    return () => clearInterval(t)
-  }, []) // eslint-disable-line
 
   // ── check() ──────────────────────────────────────────────────────────────
   function check() {
@@ -168,8 +146,6 @@ export function useAnomaly(anomalyChance = BASE_CHANCE) {
 
     lastAnomalyFlipRef.current = flipCountRef.current
 
-    // Weighted pick: live_broadcast (gif/ascii/quote combos) gets 4x weight
-    // so ~40% of all anomaly fires show the rich media event
     const WEIGHTED = [
       ...Array(4).fill('live_broadcast'),
       'please_stand_by', 'no_signal', 'dead_frequency',
@@ -177,7 +153,6 @@ export function useAnomaly(anomalyChance = BASE_CHANCE) {
       'broadcast_warning', 'landing_flash', 'countdown',
       'viewer_count', 'classified_footage', 'lost_transmission',
       'time_glitch', 'pixel_eyes', 'mirror_test', 'morse_code',
-      // subtle non-overlay — less common
       'impossible_channel', 'ch_question', 'crt_warp', 'shadow_pass',
     ]
     const id = WEIGHTED[Math.floor(Math.random() * WEIGHTED.length)]
@@ -189,59 +164,75 @@ export function useAnomaly(anomalyChance = BASE_CHANCE) {
     return anomaly
   }
 
-  // ── buildData() ──────────────────────────────────────────────────────────
-  // For 'live_broadcast': randomly compose gif+quote, ascii+quote, quote-only, etc.
-  function buildData(anomalyId) {
-    const p = prefetchedRef.current
-    const gif   = p.gifs.length   ? p.gifs[Math.floor(Math.random()*p.gifs.length)]   : CREEPY_GIFS[Math.floor(Math.random()*CREEPY_GIFS.length)]
-    const ascii = p.asciiArts.length ? p.asciiArts[Math.floor(Math.random()*p.asciiArts.length)] : { art: ASCII_FACES[Math.floor(Math.random()*ASCII_FACES.length)], word: '' }
-    const quote = p.quotes.length ? p.quotes[Math.floor(Math.random()*p.quotes.length)] : null
-
+  // ── buildData() — always fetches fresh content, returns Promise ───────────
+  async function buildData(anomalyId) {
     if (anomalyId === 'live_broadcast') {
-      // Weighted layouts: gif+quote is the primary experience
-      const layouts = [
-        'gif_quote', 'gif_quote', 'gif_quote', 'gif_quote', 'gif_quote',  // 5x — dominant
-        'ascii_quote', 'ascii_quote',                                       // 2x
-        'gif_ascii_quote',                                                  // 1x
-        'quote_only', 'gif_only', 'ascii_only',                            // 1x each — rare
-      ]
-      const layout  = layouts[Math.floor(Math.random() * layouts.length)]
-      return { layout, gif, ascii, quote }
+      // Fetch gif AND quote simultaneously — always fresh, never from cache pool
+      const useGif = Math.random() < 0.7
+      const [gifResult, quoteResult] = await Promise.allSettled([
+        useGif ? fetchGif() : fetchAsciiArt(),
+        fetchQuote(),
+      ])
+      const media = gifResult.status === 'fulfilled' ? gifResult.value : null
+      const quote = quoteResult.status === 'fulfilled' ? quoteResult.value : null
+
+      if (useGif) {
+        return {
+          layout: 'gif_quote',
+          gif: media ?? CREEPY_GIFS[Math.floor(Math.random() * CREEPY_GIFS.length)],
+          ascii: null,
+          quote,
+        }
+      } else {
+        return {
+          layout: 'ascii_quote',
+          gif: null,
+          ascii: media ?? { art: ASCII_FACES[Math.floor(Math.random() * ASCII_FACES.length)], word: '' },
+          quote,
+        }
+      }
     }
 
-    // Static anomalies with occasional live quote injected
+    // Other overlays — just fetch a fresh quote
+    const quoteResult = await Promise.race([
+      fetchQuote(),
+      new Promise(r => setTimeout(() => r(null), 2000)), // 2s timeout
+    ]).catch(() => null)
+
+    const q = quoteResult
+
     switch (anomalyId) {
       case 'broadcast_warning':
         return {
           warning: BROADCAST_WARNINGS[Math.floor(Math.random()*BROADCAST_WARNINGS.length)],
-          quote: Math.random() < 0.5 ? quote : null,
+          quote: Math.random() < 0.5 ? q : null,
         }
       case 'classified_footage':
         return {
           level: CLASSIFIED_LEVELS[Math.floor(Math.random()*CLASSIFIED_LEVELS.length)],
           lines: shuffle([...REDACTED_LINES]).slice(0,4),
-          quote: Math.random() < 0.4 ? quote : null,
+          quote: Math.random() < 0.4 ? q : null,
         }
       case 'lost_transmission':
-        return { tx: LOST_TRANSMISSIONS[Math.floor(Math.random()*LOST_TRANSMISSIONS.length)], quote }
+        return { tx: LOST_TRANSMISSIONS[Math.floor(Math.random()*LOST_TRANSMISSIONS.length)], quote: q }
       case 'morse_code':
-        return { morse: MORSE_MESSAGES[Math.floor(Math.random()*MORSE_MESSAGES.length)], quote }
+        return { morse: MORSE_MESSAGES[Math.floor(Math.random()*MORSE_MESSAGES.length)], quote: q }
       case 'viewer_count':
-        return { count: rand(0, 2), quote }
+        return { count: rand(0, 2), quote: q }
       case 'countdown':
-        return { from: rand(4, 9), quote }
+        return { from: rand(4, 9), quote: q }
       case 'pixel_eyes':
-        return { eyes: Array.from({length: rand(2,5)}, () => ({x: rand(0,7), y: rand(0,5)})), quote }
+        return { eyes: Array.from({length: rand(2,5)}, () => ({x: rand(0,7), y: rand(0,5)})), quote: q }
       case 'mirror_test':
-        return { seed: Math.random(), quote }
+        return { seed: Math.random(), quote: q }
       case 'time_glitch': {
         const offsets = [-1,-2,-5,-10,-60,1,2,5,10]
         const offset  = offsets[Math.floor(Math.random()*offsets.length)]
         const wrong   = new Date(Date.now() + offset*60*1000)
-        return { wrong: wrong.toLocaleTimeString(), right: new Date().toLocaleTimeString(), diff: offset > 0 ? `${offset}min ahead` : `${Math.abs(offset)}min behind`, quote }
+        return { wrong: wrong.toLocaleTimeString(), right: new Date().toLocaleTimeString(), diff: offset > 0 ? `${offset}min ahead` : `${Math.abs(offset)}min behind`, quote: q }
       }
       default:
-        return { quote }
+        return { quote: q }
     }
   }
 
