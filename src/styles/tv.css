@@ -18,8 +18,8 @@
   height: 800px;
   background: radial-gradient(
     ellipse 65% 45% at 50% 50%,
-    rgba(0, 90, 120, 0.16) 0%,
-    rgba(0, 30, 50, 0.08) 50%,
+    rgba(30, 80, 50, 0.12) 0%,
+    rgba(10, 40, 20, 0.06) 50%,
     transparent 72%
   );
   pointer-events: none;
@@ -81,104 +81,114 @@
 /* ═══════════════════════════════════════════
    TV BODY — proper 3D CRT monitor
    ═══════════════════════════════════════════ */
+/* ─────────────────────────────────────────────────────────────────
+   CRT TV SHELL — early 90s beige/grey consumer CRT
+   Thick rounded plastic body, deep recessed screen,
+   speaker grille chin, physical knob details.
+   ───────────────────────────────────────────────────────────────── */
+
+/* Plastic colour palette */
+:root {
+  --crt-plastic:      #b8b4ae;   /* warm grey-beige body */
+  --crt-plastic-hi:   #ccc8c2;   /* highlight edge */
+  --crt-plastic-lo:   #8a8680;   /* shadow edge */
+  --crt-plastic-dark: #706d68;   /* deep shadow */
+  --crt-bezel:        #1a1814;   /* very dark inner bezel */
+  --crt-screen-bg:    #050a08;   /* off-black screen */
+}
+
 .tv-body {
   position: relative;
-  width: min(600px, 90vw);
-  transition: width 0.4s ease, transform 0.4s ease;
+  width: min(580px, 92vw);
+  transition: width 0.4s ease;
 }
-/* "Fullscreen" — zoom the TV to fill available space */
 .tv-body-zoomed {
-  width: min(1000px, 96vw) !important;
+  width: min(960px, 96vw) !important;
 }
 
+/* ── Main plastic shell ── */
 .tv-body-3d {
-  /* Front face */
-  background: linear-gradient(
-    165deg,
-    #383838 0%,
-    #2c2c2c 25%,
-    #222222 55%,
-    #1a1a1a 80%,
-    #141414 100%
-  );
-  border-radius: 18px 18px 14px 14px / 14px 14px 12px 12px;
+  background:
+    linear-gradient(160deg,
+      var(--crt-plastic-hi) 0%,
+      var(--crt-plastic)    18%,
+      #aea9a3               45%,
+      #9e9a95               72%,
+      var(--crt-plastic-lo) 100%
+    );
+  border-radius: 22px 22px 18px 18px;
 
-  /* Deep multi-layer shadow for 3D mass */
+  /* Thick chunky padding = deep bezel look */
+  padding: 28px 30px 0 30px;
+
   box-shadow:
-    /* Top edge highlight */
-    inset 0 2px 0 rgba(255,255,255,0.09),
-    /* Left edge highlight */
-    inset 3px 0 6px rgba(255,255,255,0.05),
-    /* Right edge shadow */
-    inset -3px 0 6px rgba(0,0,0,0.4),
-    /* Bottom inner shadow */
-    inset 0 -4px 10px rgba(0,0,0,0.6),
-    /* Large drop shadow - depth */
-    0 40px 80px rgba(0,0,0,0.95),
-    0 20px 40px rgba(0,0,0,0.8),
-    0 8px 16px  rgba(0,0,0,0.7),
-    /* Outer rim */
-    0 0 0 1px rgba(255,255,255,0.05),
-    /* Ambient screen glow on body */
-    0 0 60px rgba(0,100,130,0.06);
-
-  padding: 18px 20px 0 20px;
+    /* Top-left edge catch-light */
+    inset 0 3px 0   var(--crt-plastic-hi),
+    inset 3px 0 0   var(--crt-plastic-hi),
+    /* Bottom-right shadow */
+    inset -3px -3px 0 var(--crt-plastic-dark),
+    inset 0 -3px 0  var(--crt-plastic-dark),
+    /* Inner depth */
+    inset 0 1px 16px rgba(0,0,0,0.18),
+    /* Drop shadow */
+    0 32px 64px rgba(0,0,0,0.92),
+    0 16px 32px rgba(0,0,0,0.75),
+    0 6px  14px rgba(0,0,0,0.6),
+    /* Outer edge line */
+    0 0 0 1.5px var(--crt-plastic-dark);
 }
 
-/* 3D side faces via pseudo-elements */
+/* Right side face */
 .tv-body-3d::before {
   content: '';
   position: absolute;
-  /* Right side face */
-  top: 8px;
-  right: -14px;
-  bottom: -10px;
-  width: 14px;
-  background: linear-gradient(to right, #1a1a1a, #111111);
-  border-radius: 0 6px 6px 0;
-  box-shadow: 2px 6px 20px rgba(0,0,0,0.8);
-  transform: skewY(-0.5deg);
+  top: 10px; right: -16px; bottom: -8px;
+  width: 16px;
+  background: linear-gradient(to right, var(--crt-plastic-lo), var(--crt-plastic-dark));
+  border-radius: 0 8px 8px 0;
+  box-shadow: 4px 8px 24px rgba(0,0,0,0.7);
+  transform: skewY(-0.4deg);
   z-index: -1;
 }
-
+/* Bottom face */
 .tv-body-3d::after {
   content: '';
   position: absolute;
-  /* Bottom face */
-  bottom: -12px;
-  left: 8px;
-  right: -8px;
-  height: 12px;
-  background: linear-gradient(to bottom, #161616, #0e0e0e);
-  border-radius: 0 0 6px 6px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.9);
-  transform: skewX(-0.5deg);
+  bottom: -14px; left: 10px; right: -10px;
+  height: 14px;
+  background: linear-gradient(to bottom, var(--crt-plastic-lo), var(--crt-plastic-dark));
+  border-radius: 0 0 8px 8px;
+  box-shadow: 0 10px 28px rgba(0,0,0,0.85);
+  transform: skewX(-0.4deg);
   z-index: -2;
 }
 
-/* Side face divs (left + right + top + bottom) */
-.tv-side-left, .tv-side-right,
-.tv-side-bottom, .tv-side-top { display: none; }
-
-/* ── Bezel ── */
+/* ── Inner bezel (deep recess around screen) ── */
 .tv-bezel {
-  background: #080808;
-  border-radius: 8px 8px 4px 4px;
-  padding: 8px 8px 8px 8px;
-  box-shadow:
-    inset 0 0 0 1px rgba(0,0,0,0.9),
-    inset 3px 3px 12px rgba(0,0,0,0.95),
-    inset -2px -2px 8px rgba(0,0,0,0.8);
+  /* Dark inner recess — makes screen look deeply set */
+  background: linear-gradient(135deg, #0f0e0c, #080806);
+  border-radius: 12px 12px 8px 8px;
+  padding: 16px 18px 14px 18px;
   position: relative;
+
+  box-shadow:
+    /* Deep inset shadow all around */
+    inset 0  4px 18px rgba(0,0,0,0.95),
+    inset 0 -4px 12px rgba(0,0,0,0.7),
+    inset  6px 0 14px rgba(0,0,0,0.8),
+    inset -6px 0 14px rgba(0,0,0,0.8),
+    /* Outer bevel line (lighter top/left = raised edge) */
+    inset 0 1px 0 rgba(255,255,255,0.07),
+    inset 1px 0 0 rgba(255,255,255,0.04);
 }
 
-/* Bezel inner bevel line */
+/* Inner bevel highlight ring */
 .tv-bezel::before {
   content: '';
   position: absolute;
-  inset: 4px;
-  border-radius: 6px;
-  border: 1px solid rgba(255,255,255,0.04);
+  inset: 6px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.035);
   pointer-events: none;
   z-index: 0;
 }
@@ -187,86 +197,132 @@
 .tv-screen {
   position: relative;
   width: 100%;
-  aspect-ratio: 16 / 9;
-  background: #000;
-  border-radius: 4px;
+  aspect-ratio: 4 / 3;    /* CRT aspect ratio */
+  background: var(--crt-screen-bg);
+  border-radius: 6px;
   overflow: hidden;
 
-  /* CRT subtle curve */
   box-shadow:
-    inset 0 0 80px rgba(0,0,0,0.55),
-    inset 0 0 30px rgba(0,0,0,0.4),
-    0 0 30px rgba(0,100,120,0.04);
+    /* Curved glass inner shadow */
+    inset 0 0 120px rgba(0,0,0,0.7),
+    inset 0 0 40px  rgba(0,0,0,0.5),
+    /* Screen phosphor ambient */
+    0 0 18px rgba(0,80,60,0.08),
+    /* Deep recess edge */
+    inset 0 2px 4px rgba(255,255,255,0.04);
 
-  /* Very slight barrel distortion illusion via clip */
-  clip-path: inset(0 0 0 0 round 4px);
+  /* Barrel distortion suggestion */
+  clip-path: inset(0 0 0 0 round 6px);
 }
 
-/* Curved screen edge highlight (top) */
+/* Curved glass highlight — top catch-light */
 .tv-screen::before {
   content: '';
   position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 40%;
+  top: 0; left: 0; right: 0; height: 45%;
   background: linear-gradient(
     to bottom,
-    rgba(255,255,255,0.025) 0%,
+    rgba(255,255,255,0.04) 0%,
+    rgba(255,255,255,0.015) 40%,
     transparent 100%
   );
   pointer-events: none;
   z-index: 15;
-  border-radius: 4px 4px 0 0;
+  border-radius: 6px 6px 0 0;
 }
 
-/* ── TV Chin ── */
+/* ── Chin panel (speaker grilles + controls) ── */
 .tv-chin {
-  height: 44px;
+  height: 52px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 12px;
+  justify-content: space-between;
+  padding: 0 14px;
   position: relative;
+  gap: 8px;
 }
 
-/* Chin raised divider */
+/* Thin raised divider between screen and chin */
 .tv-chin::before {
   content: '';
   position: absolute;
-  top: 0; left: 12px; right: 12px;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
+  top: 0; left: 8px; right: 8px; height: 1px;
+  background: linear-gradient(90deg,
+    transparent,
+    var(--crt-plastic-dark) 20%,
+    var(--crt-plastic-dark) 80%,
+    transparent
+  );
 }
 
+/* Speaker grille (left side of chin) */
+.tv-chin::after {
+  content: '';
+  position: absolute;
+  left: 14px; top: 10px; bottom: 10px;
+  width: 52px;
+  background-image: radial-gradient(
+    circle, rgba(0,0,0,0.5) 35%, transparent 35%
+  );
+  background-size: 4px 4px;
+  border-radius: 2px;
+  opacity: 0.6;
+}
+
+/* Power LED */
 .tv-led {
-  width: 6px;
-  height: 6px;
+  width: 5px; height: 5px;
   border-radius: 50%;
-  background: #00e040;
-  box-shadow: 0 0 6px #00e040, 0 0 14px rgba(0,224,64,0.4);
+  background: #00c830;
+  box-shadow: 0 0 4px #00c830, 0 0 10px rgba(0,200,48,0.5);
   animation: led-breathe 4s ease-in-out infinite;
+  flex-shrink: 0;
+  margin-left: 60px;   /* pushed right of grille */
 }
 .tv-led.off {
-  background: #1a1a1a;
+  background: #3a3836;
   box-shadow: none;
   animation: none;
 }
 @keyframes led-breathe {
-  0%, 100% { opacity: 1;   box-shadow: 0 0 6px #00e040, 0 0 12px rgba(0,224,64,0.4); }
-  50%       { opacity: 0.4; box-shadow: 0 0 3px #00e040; }
+  0%, 100% { opacity: 1;   box-shadow: 0 0 5px #00c830, 0 0 12px rgba(0,200,48,0.4); }
+  50%       { opacity: 0.35; box-shadow: 0 0 2px #00c830; }
 }
 
+/* Brand text */
 .tv-brand {
   font-family: var(--font-mono);
-  font-size: 7px;
-  color: rgba(255,255,255,0.1);
-  letter-spacing: 5px;
+  font-size: 6.5px;
+  color: rgba(0,0,0,0.35);
+  letter-spacing: 4px;
   text-transform: uppercase;
   user-select: none;
+  flex: 1;
+  text-align: center;
 }
 
-/* ── TV Stand ── */
-.tv-body-3d .tv-chin {
-  position: relative;
+/* Fake control buttons on right side of chin */
+.tv-chin-knobs {
+  display: flex;
+  gap: 5px;
+  flex-shrink: 0;
+}
+.tv-knob {
+  width: 8px; height: 8px;
+  border-radius: 2px;
+  background: linear-gradient(135deg, var(--crt-plastic-hi), var(--crt-plastic-lo));
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.3),
+    inset 0 -1px 0 rgba(0,0,0,0.3),
+    0 1px 2px rgba(0,0,0,0.4);
+}
+.tv-knob-round {
+  width: 11px; height: 11px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, var(--crt-plastic-hi), var(--crt-plastic-dark));
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.2),
+    0 1px 3px rgba(0,0,0,0.5);
 }
 
 /* ── iframe ── */
@@ -291,8 +347,8 @@
   position: absolute; inset: 0;
   background: repeating-linear-gradient(
     to bottom,
-    transparent 0px, transparent 2px,
-    rgba(0,0,0,0.2) 2px, rgba(0,0,0,0.2) 4px
+    transparent 0px, transparent 1.5px,
+    rgba(0,0,0,0.28) 1.5px, rgba(0,0,0,0.28) 3px
   );
   pointer-events: none; z-index: 5; border-radius: inherit;
 }
@@ -300,29 +356,37 @@
 .crt-vignette {
   position: absolute; inset: 0;
   background: radial-gradient(
-    ellipse 100% 100% at 50% 50%,
-    transparent 38%,
-    rgba(0,0,0,0.45) 78%,
-    rgba(0,0,0,0.8) 100%
+    ellipse 95% 90% at 50% 50%,
+    transparent 30%,
+    rgba(0,0,0,0.5)  72%,
+    rgba(0,0,0,0.88) 100%
   );
   pointer-events: none; z-index: 6; border-radius: inherit;
 }
 
+/* Phosphor green tint — very subtle */
 .crt-gloss {
   position: absolute; inset: 0;
-  background: linear-gradient(
-    135deg,
-    rgba(255,255,255,0.022) 0%,
-    transparent 38%,
-    transparent 62%,
-    rgba(255,255,255,0.008) 100%
-  );
+  background:
+    /* Green phosphor cast */
+    radial-gradient(ellipse 80% 70% at 50% 50%,
+      rgba(20,60,30,0.07) 0%,
+      transparent 70%
+    ),
+    /* Top-right corner glare */
+    linear-gradient(
+      135deg,
+      rgba(255,255,255,0.03) 0%,
+      transparent 35%,
+      transparent 65%,
+      rgba(255,255,255,0.01) 100%
+    );
   pointer-events: none; z-index: 7; border-radius: inherit;
 }
 
 .crt-grain {
   position: absolute; inset: 0; width: 100%; height: 100%;
-  pointer-events: none; z-index: 8; opacity: 0.06;
+  pointer-events: none; z-index: 8; opacity: 0.09;
   mix-blend-mode: screen; border-radius: inherit;
 }
 

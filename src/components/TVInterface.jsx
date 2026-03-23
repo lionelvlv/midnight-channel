@@ -12,10 +12,23 @@ import '../styles/tv.css'
 // ═══════════════════════════════════════════════
 let _audioCtx = null
 let _humNodes = null
+let _masterLpf = null   // global lowpass for vintage muffled sound
 
 function getAudioCtx() {
   if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)()
   return _audioCtx
+}
+// All procedural audio routes through this node (muffled CRT speaker feel)
+function getMasterOut() {
+  const ctx = getAudioCtx()
+  if (!_masterLpf) {
+    _masterLpf = ctx.createBiquadFilter()
+    _masterLpf.type = 'lowpass'
+    _masterLpf.frequency.value = 1800   // ~1.8kHz — warm, muffled, old speaker
+    _masterLpf.Q.value = 0.7
+    _masterLpf.connect(ctx.destination)
+  }
+  return _masterLpf
 }
 function resumeCtx() {
   try { const c = getAudioCtx(); if (c.state === 'suspended') c.resume() } catch {}
@@ -34,7 +47,7 @@ function playStaticSound(durationSec, vol = 0.45) {
     const gain = ctx.createGain()
     gain.gain.setValueAtTime(vol, ctx.currentTime)
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + durationSec)
-    src.connect(lpf); lpf.connect(gain); gain.connect(ctx.destination); src.start()
+    src.connect(lpf); lpf.connect(gain); gain.connect(getMasterOut()); src.start()
   } catch {}
 }
 
@@ -47,7 +60,7 @@ function playToneSound(freq, durationSec, vol = 0.15, type = 'sine') {
     osc.type = type; osc.frequency.value = freq
     gain.gain.setValueAtTime(vol, ctx.currentTime)
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + durationSec)
-    osc.connect(gain); gain.connect(ctx.destination)
+    osc.connect(gain); gain.connect(getMasterOut())
     osc.start(); osc.stop(ctx.currentTime + durationSec)
   } catch {}
 }
@@ -67,7 +80,7 @@ function playEerieSound() {
     osc2.frequency.exponentialRampToValueAtTime(120, now + 2.5)
     gain.gain.setValueAtTime(0.12, now)
     gain.gain.exponentialRampToValueAtTime(0.001, now + 3)
-    osc1.connect(gain); osc2.connect(gain); gain.connect(ctx.destination)
+    osc1.connect(gain); osc2.connect(gain); gain.connect(getMasterOut())
     osc1.start(); osc1.stop(now + 3)
     osc2.start(); osc2.stop(now + 3)
   } catch {}
@@ -88,7 +101,7 @@ function playWhisperSound() {
     gain.gain.setValueAtTime(0, now)
     gain.gain.linearRampToValueAtTime(0.35, now + 0.3)
     gain.gain.linearRampToValueAtTime(0, now + 1.5)
-    src.connect(bpf); bpf.connect(gain); gain.connect(ctx.destination); src.start()
+    src.connect(bpf); bpf.connect(gain); gain.connect(getMasterOut()); src.start()
   } catch {}
 }
 
@@ -104,7 +117,7 @@ function playGlitchSound() {
       osc.frequency.value = 200 + Math.random() * 2000
       gain.gain.setValueAtTime(0.08, now + i * 0.07)
       gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.07 + 0.06)
-      osc.connect(gain); gain.connect(ctx.destination)
+      osc.connect(gain); gain.connect(getMasterOut())
       osc.start(now + i * 0.07); osc.stop(now + i * 0.07 + 0.07)
     }
   } catch {}
@@ -120,7 +133,7 @@ function startHum(vol = 0.06) {
     const lfoG = ctx.createGain(); lfoG.gain.value = 1.2
     lfo.connect(lfoG); lfoG.connect(osc.frequency)
     const gain = ctx.createGain(); gain.gain.value = 0
-    osc.connect(gain); gain.connect(ctx.destination)
+    osc.connect(gain); gain.connect(getMasterOut())
     osc.start(); lfo.start()
     gain.gain.linearRampToValueAtTime(vol, ctx.currentTime + 2.5)
     _humNodes = { osc, lfo, gain }
@@ -1044,7 +1057,11 @@ export function TVInterface() {
               <div className="tv-chin">
                 <div className={`tv-led${isSwitching ? ' off' : ''}`} />
                 <div className="tv-brand">NOCTURNE</div>
-                <div className={`tv-led${isSwitching ? ' off' : ''}`} />
+                <div className="tv-chin-knobs">
+                  <div className="tv-knob" />
+                  <div className="tv-knob" />
+                  <div className="tv-knob-round" />
+                </div>
               </div>
             </div>
 
