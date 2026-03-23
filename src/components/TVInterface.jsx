@@ -1,7 +1,7 @@
 // src/components/TVInterface.jsx
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useChannel }              from '../hooks/useChannel'
-import { useAnomaly } from '../hooks/useAnomaly'
+import { useAnomaly, IDLE_MESSAGES, WRONG_CHANNEL_IDS } from '../hooks/useAnomaly'
 import { ControlBar }              from './ControlBar'
 import { FilterPanel, GENRE_FILTERS } from './FilterPanel'
 import { TestPatternScreen, StandbyScreen, CrypticScreen } from './TestPattern'
@@ -123,6 +123,95 @@ function playGlitchSound() {
   } catch {}
 }
 
+function playPianoNote() {
+  try {
+    resumeCtx()
+    const ctx = getAudioCtx()
+    const now = ctx.currentTime
+    // Muffled piano tones — Eb3, C3, F3, G3, Bb2
+    const notes = [155.56, 130.81, 174.61, 196.00, 116.54]
+    const freq = notes[Math.floor(Math.random() * notes.length)]
+    const osc = ctx.createOscillator(); osc.type = 'sine'
+    osc.frequency.value = freq
+    // Add slight 2nd harmonic for piano-like timbre
+    const osc2 = ctx.createOscillator(); osc2.type = 'sine'
+    osc2.frequency.value = freq * 2
+    const gain = ctx.createGain(); const gain2 = ctx.createGain()
+    gain.gain.setValueAtTime(0.22, now)
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 2.2)
+    gain2.gain.setValueAtTime(0.05, now)
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 1.0)
+    osc.connect(gain); gain.connect(getMasterOut())
+    osc2.connect(gain2); gain2.connect(getMasterOut())
+    osc.start(now); osc.stop(now + 2.3)
+    osc2.start(now); osc2.stop(now + 1.1)
+  } catch {}
+}
+
+function playDialUp() {
+  try {
+    resumeCtx()
+    const ctx = getAudioCtx()
+    const now = ctx.currentTime
+    // Classic dial-up: two tones sweeping past each other, cut short
+    const osc1 = ctx.createOscillator(); osc1.type = 'sine'
+    const osc2 = ctx.createOscillator(); osc2.type = 'sine'
+    osc1.frequency.setValueAtTime(2100, now)
+    osc1.frequency.exponentialRampToValueAtTime(1300, now + 0.5)
+    osc2.frequency.setValueAtTime(1300, now)
+    osc2.frequency.exponentialRampToValueAtTime(2400, now + 0.5)
+    const gain = ctx.createGain()
+    gain.gain.setValueAtTime(0.14, now)
+    gain.gain.setValueAtTime(0.14, now + 0.45)
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.52) // abrupt cut
+    osc1.connect(gain); osc2.connect(gain); gain.connect(getMasterOut())
+    osc1.start(now); osc1.stop(now + 0.55)
+    osc2.start(now); osc2.stop(now + 0.55)
+  } catch {}
+}
+
+function playMagneticThunk() {
+  // CRT power-off magnetic thunk
+  try {
+    resumeCtx()
+    const ctx = getAudioCtx()
+    const now = ctx.currentTime
+    const samples = Math.ceil(ctx.sampleRate * 0.35)
+    const buf = ctx.createBuffer(1, samples, ctx.sampleRate)
+    const data = buf.getChannelData(0)
+    for (let i = 0; i < samples; i++) {
+      const t = i / ctx.sampleRate
+      data[i] = Math.exp(-t * 18) * (Math.random() * 2 - 1) * 0.9
+    }
+    const src = ctx.createBufferSource(); src.buffer = buf
+    const lpf = ctx.createBiquadFilter(); lpf.type = 'lowpass'; lpf.frequency.value = 350
+    const gain = ctx.createGain(); gain.gain.value = 0.55
+    src.connect(lpf); lpf.connect(gain); gain.connect(getMasterOut()); src.start(now)
+  } catch {}
+}
+
+function playReversedTone() {
+  // A tone that sounds like it's playing backward — descends then lurches up
+  try {
+    resumeCtx()
+    const ctx = getAudioCtx()
+    const now = ctx.currentTime
+    const osc = ctx.createOscillator(); osc.type = 'sawtooth'
+    osc.frequency.setValueAtTime(900, now)
+    osc.frequency.exponentialRampToValueAtTime(180, now + 0.45)
+    osc.frequency.setValueAtTime(180, now + 0.45)
+    osc.frequency.exponentialRampToValueAtTime(1400, now + 0.7)
+    osc.frequency.exponentialRampToValueAtTime(100, now + 1.1)
+    const gain = ctx.createGain()
+    gain.gain.setValueAtTime(0.07, now)
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 1.2)
+    const lpf = ctx.createBiquadFilter(); lpf.type = 'lowpass'; lpf.frequency.value = 2200
+    osc.connect(lpf); lpf.connect(gain); gain.connect(getMasterOut())
+    osc.start(now); osc.stop(now + 1.3)
+  } catch {}
+}
+
+
 function startHum(vol = 0.06) {
   if (_humNodes) return
   try {
@@ -238,6 +327,23 @@ function DeadAirScreen({ onOpenFilter }) {
   )
 }
 
+// ═══════════════════════════════════════════════
+//  ALWAYS-ON CLOCK
+// ═══════════════════════════════════════════════
+function ClockDisplay() {
+  const [time, setTime] = useState(() =>
+    new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase()
+  )
+  useEffect(() => {
+    const t = setInterval(() => {
+      setTime(new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase())
+    }, 15000)
+    return () => clearInterval(t)
+  }, [])
+  return <div className="tv-clock">{time}</div>
+}
+
+
 const DEFAULT_FILTER = {
   genreId: 'any', yearEnabled: false,
   yearFrom: 2000, yearTo: new Date().getFullYear(),
@@ -274,6 +380,7 @@ export function TVInterface() {
   const [uiVisible,     setUiVisible]     = useState(true)
   const [uiHidden,      setUiHidden]      = useState(false)
   const [isFullscreen,  setIsFullscreen]  = useState(false)
+  const [idleMessage,   setIdleMessage]   = useState(null)
 
   const iframeRef       = useRef(null)
   const staticCanvasRef = useRef(null)
@@ -286,6 +393,7 @@ export function TVInterface() {
   const osdTimer        = useRef(null)
   const anomalyTimer    = useRef(null)
   const uiTimer         = useRef(null)
+  const idleLongRef     = useRef(null)
   const volumeRef       = useRef(volume)
   volumeRef.current = volume
 
@@ -347,6 +455,26 @@ export function TVInterface() {
       clearTimeout(uiTimer.current)
     }
   }, [uiHidden]) // eslint-disable-line
+
+  // ── Long idle "still there?" ──
+  useEffect(() => {
+    function resetIdleLong() {
+      clearTimeout(idleLongRef.current)
+      setIdleMessage(null)
+      idleLongRef.current = setTimeout(() => {
+        const msg = IDLE_MESSAGES[Math.floor(Math.random() * IDLE_MESSAGES.length)]
+        setIdleMessage(msg)
+        setTimeout(() => setIdleMessage(null), 28000)
+      }, 10 * 60 * 1000)  // 10 minutes
+    }
+    const events = ['mousemove', 'mousedown', 'keydown', 'touchstart']
+    events.forEach(ev => window.addEventListener(ev, resetIdleLong, { passive: true }))
+    resetIdleLong()
+    return () => {
+      events.forEach(ev => window.removeEventListener(ev, resetIdleLong))
+      clearTimeout(idleLongRef.current)
+    }
+  }, [])
 
   // ── Keyboard navigation ──
   useEffect(() => {
@@ -549,6 +677,12 @@ export function TVInterface() {
     setVideoSrc('')
     setOsd({ visible: true, channel: 'CH --', status: 'Searching…' })
     await new Promise(r => setTimeout(r, 65))
+
+    // Between-channel wrong sounds (30% chance — layers under the static)
+    if (volumeRef.current > 0 && Math.random() < 0.30) {
+      const wrongSounds = [playPianoNote, playDialUp, playMagneticThunk, playReversedTone]
+      wrongSounds[Math.floor(Math.random() * wrongSounds.length)]()
+    }
     // Static burst: short normally, use anomaly duration for static_heavy
     const staticDur = anom?.id === 'static_heavy'
       ? (anom.duration ?? Math.floor(Math.random() * 5000) + 1000)
@@ -568,16 +702,25 @@ export function TVInterface() {
       setScreenAnomaly(anom.id)
       setOsd({ visible: false, channel: '', status: '' })
 
-      // Play sound right away
+      // Per-anomaly sounds
       const vol = volumeRef.current
       if (vol > 0) {
-        const s = [playWhisperSound, playEerieSound, playGlitchSound]
-        setTimeout(() => s[Math.floor(Math.random() * s.length)](), 200)
+        if (anom.id === 'live_broadcast') {
+          const s = [playWhisperSound, playEerieSound, playGlitchSound]
+          setTimeout(() => s[Math.floor(Math.random() * s.length)](), 200)
+        } else if (anom.id === 'error_message') {
+          setTimeout(() => playGlitchSound(), 120)
+        }
+        // as_bump / mundane_still: intentionally silent
+        // fake_commercial tone fires after content loads below
       }
 
       // Fetch content in background — swap in when ready
       buildAnomalyData(anom.id).then(data => {
         setAnomalyData(data)
+        if (anom.id === 'fake_commercial' && data.commercial?.tone && vol > 0) {
+          setTimeout(() => playToneSound(440, 1.3, 0.07), 500)
+        }
       }).catch(() => {})
 
       anomalyTimer.current = setTimeout(() => {
@@ -599,6 +742,7 @@ export function TVInterface() {
 
     const osdCh = anom?.id==='impossible_channel' ? `CH ${Math.floor(Math.random()*9000)+1000}`
                 : anom?.id==='ch_question'         ? 'CH ???'
+                : (!anom && Math.random() < 0.09)   ? WRONG_CHANNEL_IDS[Math.floor(Math.random()*WRONG_CHANNEL_IDS.length)]
                 : `CH ${channelNum ?? '--'}`
 
     if (lost) {
@@ -983,6 +1127,93 @@ export function TVInterface() {
         )
       }
 
+      // ── Adult Swim Bump ────────────────────────────────────────────────────
+      case 'as_bump': {
+        const { lines, quote } = d
+        if (!lines) return (
+          <div className="anomaly-overlay anomaly-as-bump">
+            <div className="as-bump-loading">▓▓░░▓▓░░</div>
+          </div>
+        )
+        return (
+          <div className="anomaly-overlay anomaly-as-bump">
+            <div className="as-bump-content">
+              {lines.map((line, i) => (
+                <div key={i} className="as-bump-line" style={{ animationDelay: `${i * 0.45}s` }}>{line}</div>
+              ))}
+              {quote?.text && (
+                <div className="as-bump-quote" style={{ animationDelay: `${lines.length * 0.45 + 0.3}s` }}>
+                  — {quote.text.length > 80 ? quote.text.slice(0, 80) + '…' : quote.text}
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      }
+
+      // ── Mundane Still Image ───────────────────────────────────────────────
+      case 'mundane_still': {
+        const { image } = d
+        if (!image) return (
+          <div className="anomaly-overlay anomaly-mundane">
+            <div className="mundane-loading">▓▓░░▓▓░░</div>
+          </div>
+        )
+        return (
+          <div className="anomaly-overlay anomaly-mundane">
+            <img className="mundane-img" src={image.url} alt="" />
+            <div className="mundane-label">{image.label}</div>
+          </div>
+        )
+      }
+
+      // ── Fake Commercial ────────────────────────────────────────────────────
+      case 'fake_commercial': {
+        const { commercial } = d
+        if (!commercial) return (
+          <div className="anomaly-overlay anomaly-commercial">
+            <div className="comm-loading">▓▓░░▓▓░░</div>
+          </div>
+        )
+        return (
+          <div className="anomaly-overlay anomaly-commercial">
+            {commercial.headline && (
+              <div className="comm-headline">{commercial.headline}</div>
+            )}
+            <div className="comm-lines">
+              {commercial.lines.map((line, i) => (
+                <div key={i} className="comm-line" style={{ animationDelay: `${i * 0.5}s` }}>{line}</div>
+              ))}
+            </div>
+            {commercial.tagline && (
+              <div className="comm-tagline">{commercial.tagline}</div>
+            )}
+          </div>
+        )
+      }
+
+      // ── Error Message ──────────────────────────────────────────────────────
+      case 'error_message': {
+        const { error, time, addr, count } = d
+        if (!error) return (
+          <div className="anomaly-overlay anomaly-error-msg">
+            <div className="err-loading">▓▓░░▓▓░░</div>
+          </div>
+        )
+        return (
+          <div className="anomaly-overlay anomaly-error-msg">
+            <div className="err-header">// SYSTEM FAULT //</div>
+            <div className="err-code">{error.code}</div>
+            <div className="err-divider">▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓</div>
+            <div className="err-detail">{error.detail}</div>
+            <div className="err-note">{error.note}</div>
+            <div className="err-meta">ADDR {addr} &nbsp;&middot;&nbsp; {time} &nbsp;&middot;&nbsp; OCCURRENCE #{count}</div>
+            <div className="err-footer">[ DO NOT ADJUST YOUR SET ]</div>
+          </div>
+        )
+      }
+
+
       default: return null
     }
   }
@@ -1038,6 +1269,10 @@ export function TVInterface() {
 
                   {lostChannel && !videoSrc && renderLostChannel()}
                   {screenAnomaly && renderScreenAnomaly()}
+                  <ClockDisplay />
+                  {idleMessage && !isSwitching && !screenAnomaly && (
+                    <div className="idle-message">{idleMessage}</div>
+                  )}
 
                   <div className="crt-scanlines" />
                   <div className="crt-vignette"  />
