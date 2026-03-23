@@ -198,8 +198,13 @@ export function useAnomaly(anomalyChance = BASE_CHANCE) {
     const quote = p.quotes.length ? p.quotes[Math.floor(Math.random()*p.quotes.length)] : null
 
     if (anomalyId === 'live_broadcast') {
-      // Pick a random composition layout
-      const layouts = ['gif_quote', 'ascii_quote', 'quote_only', 'gif_only', 'ascii_only', 'gif_ascii_quote']
+      // Weighted layouts: gif+quote is the primary experience
+      const layouts = [
+        'gif_quote', 'gif_quote', 'gif_quote', 'gif_quote', 'gif_quote',  // 5x — dominant
+        'ascii_quote', 'ascii_quote',                                       // 2x
+        'gif_ascii_quote',                                                  // 1x
+        'quote_only', 'gif_only', 'ascii_only',                            // 1x each — rare
+      ]
       const layout  = layouts[Math.floor(Math.random() * layouts.length)]
       return { layout, gif, ascii, quote }
     }

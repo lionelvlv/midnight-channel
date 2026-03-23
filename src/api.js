@@ -328,90 +328,102 @@ export async function warmCache(seeds, opts = {}) {
 //  Uses public endpoint that works without auth for reasonable usage
 // ─────────────────────────────────────────────
 // ─────────────────────────────────────────────
-//  CURATED GIF / IMAGE POOL
-//  Direct CDN URLs — no API key required.
-//  Categories: obscure indie games, visual novels,
-//  backrooms, analog horror, liminal spaces, pixel art.
+//  GIF FETCHING
+//  Query-first: always searches for fresh, themed results.
+//  Uses Giphy search (25 results) + Tenor fallback.
+//  Add VITE_GIPHY_API_KEY or VITE_TENOR_API_KEY in .env.local
+//  for higher rate limits (both are free to register).
 // ─────────────────────────────────────────────
-const MEDIA_POOL = [
-  // ── Omori / OMOCAT ──────────────────────────────
-  'https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExcHUxbzc4a2g2OXJmNnl5eGk4dndlbHZia2dxNGtyaGN4cTZqNXc4ZSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3oKIPeQ5Eh7wlC6vDi/giphy.gif',
-  'https://media1.giphy.com/media/kHU8W94VS329y/giphy.gif',
-  'https://media4.giphy.com/media/l0HlvtIPzPdt2usKs/giphy.gif',
-  // ── Yume Nikki / RPG Maker surreal ──────────────
-  'https://media4.giphy.com/media/26xBwdIuRJiAIqHwA/giphy.gif',
-  'https://media0.giphy.com/media/3ohzdIuqJoo8QdKlnW/giphy.gif',
-  'https://media2.giphy.com/media/3oEjHYqzMSPZd6YvYs/giphy.gif',
-  // ── Backrooms / liminal ──────────────────────────
-  'https://media3.giphy.com/media/26tknCqiJrBQG6bxC/giphy.gif',
-  'https://media0.giphy.com/media/3o7aD2d7hy9ktXNDP2/giphy.gif',
-  'https://media2.giphy.com/media/xUPGcguWZHRC2HyBRS/giphy.gif',
-  'https://media1.giphy.com/media/26BRsLG9GIWDIB0oM/giphy.gif',
-  // ── Analog horror / VHS ─────────────────────────
-  'https://media4.giphy.com/media/3oEjHGsiSWJvmUCpG0/giphy.gif',
-  'https://media1.giphy.com/media/l0IylOPCNkiqOgMyA/giphy.gif',
-  'https://media3.giphy.com/media/3o7TKSjRrfIPjeiVyM/giphy.gif',
-  'https://media0.giphy.com/media/26tn33aiTi1jkl6H6/giphy.gif',
-  // ── Pixel art / glitch ──────────────────────────
-  'https://media2.giphy.com/media/l0HlvtIPzPdt2usKs/giphy.gif',
-  'https://media4.giphy.com/media/3oKIPeQ5Eh7wlC6vDi/giphy.gif',
-  'https://media0.giphy.com/media/xT0GqtcVR0jOXzmmPK/giphy.gif',
-  'https://media3.giphy.com/media/3o7aCSPqXE5C6T8tBC/giphy.gif',
-  // ── Visual novel / dark cute ─────────────────────
-  'https://media1.giphy.com/media/26tknCqiJrBQG6bxC/giphy.gif',
-  'https://media2.giphy.com/media/l41YnDn1KXGPF5PnO/giphy.gif',
-  'https://media0.giphy.com/media/3o6MbdRAwIFJN3KXyE/giphy.gif',
-  // ── Cursed / surreal ────────────────────────────
-  'https://media4.giphy.com/media/26BRsLG9GIWDIB0oM/giphy.gif',
-  'https://media1.giphy.com/media/3o7TKSjRrfIPjeiVyM/giphy.gif',
-  'https://media3.giphy.com/media/26tn33aiTi1jkl6H6/giphy.gif',
-]
 
-// Fallback Tenor search for when mood-specific fetching is desired
-const TENOR_QUERIES = [
-  'omori gif', 'yume nikki animation', 'backrooms aesthetic',
-  'pixel art horror', 'analog horror', 'vhs glitch art',
-  'liminal space', 'visual novel cg', 'indie rpg maker',
-  'glitch pixel art', 'surreal pixel animation', 'cursed pixel art',
-  'ynoproject', 'rpg maker horror', 'dreamlike pixel',
+// Themed query buckets — picked randomly per fetch
+const GIF_QUERIES = [
+  // ── Omori / OMOCAT ──────────────────────
+  'omori game', 'omori sunny', 'omori black space',
+  'omori headspace', 'omocat art',
+  // ── Yume Nikki ──────────────────────────
+  'yume nikki', 'yume nikki madotsuki', 'yume nikki dream world',
+  'lcd dem', 'off rpg maker game',
+  // ── Backrooms / liminal ─────────────────
+  'backrooms', 'backrooms noclip', 'liminal space',
+  'empty pool aesthetic', 'liminal hallway',
+  'backrooms level 0', 'poolrooms',
+  // ── Visual novels ───────────────────────
+  'doki doki literature club', 'ddlc monika',
+  'umineko when they cry', 'higurashi',
+  'nier automata 2b', 'undertale', 'deltarune',
+  'angels of death rpg', 'the witch house rpg',
+  // ── Analog horror ───────────────────────
+  'analog horror', 'local58 tv', 'gemini home entertainment',
+  'mandela catalogue', 'vhs horror static',
+  'analog horror broadcast', 'cursed tv static',
+  // ── Obscure indie / RPG Maker ───────────
+  'rpg maker horror game', 'ib rpg maker', 'ao oni',
+  'misao rpg maker', 'space funeral game',
+  'lisa the painful', 'elona game',
+  // ── Pixel / glitch art ──────────────────
+  'pixel art horror', 'glitch pixel art animation',
+  'cursed pixel art', 'pixel art dark aesthetic',
+  'databend art', 'vaporwave pixel art',
+  'lo-fi animation surreal',
+  // ── General eerie ───────────────────────
+  'surreal animation', 'eerie animation loop',
+  'glitch art animation', 'vhs glitch aesthetic',
+  'dreamcore weirdcore', 'nostalgiacore aesthetic',
+  'whitecore liminal', 'cryptidcore aesthetic',
 ]
 
 export async function fetchGif() {
-  // 50% chance: use a curated static URL (always works, no API needed)
-  if (Math.random() < 0.5) {
-    const url = MEDIA_POOL[Math.floor(Math.random() * MEDIA_POOL.length)]
-    return { url, tag: 'curated' }
+  const query = GIF_QUERIES[Math.floor(Math.random() * GIF_QUERIES.length)]
+
+  // Cache the results pool per query (15min window) for efficiency
+  const cacheKey = `gif2:${query}:${Math.floor(Date.now() / (15 * 60 * 1000))}`
+  const cached   = memGet(cacheKey)
+  if (cached?.length) {
+    const url = cached[Math.floor(Math.random() * cached.length)]
+    return { url, query }
   }
 
-  // Otherwise try Tenor with specific thematic queries
-  const query = TENOR_QUERIES[Math.floor(Math.random() * TENOR_QUERIES.length)]
-  const poolKey = `gifpool:${query}:${Math.floor(Date.now() / (10 * 60 * 1000))}`
-  let pool = memGet(poolKey)
-
-  if (!pool?.length) {
-    try {
-      const p = new URLSearchParams({
-        q: query, limit: 30,
-        media_filter: 'minimal', contentfilter: 'medium',
-      })
-      const res = await fetch(`https://tenor.googleapis.com/v2/search?${p}&key=AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCyk`)
-      if (res.ok) {
-        const data = await res.json()
-        pool = (data?.results ?? [])
-          .map(r => r?.media_formats?.gif?.url ?? r?.media_formats?.tinygif?.url)
-          .filter(Boolean)
-        if (pool.length) memSet(poolKey, pool, 10 * 60 * 1000)
+  // ── 1. Giphy search (returns 25 results, pick random) ──
+  const giphyKey = import.meta.env.VITE_GIPHY_API_KEY ?? 'dc6zaTOxFJmzC'  // public demo key fallback
+  try {
+    const p = new URLSearchParams({
+      api_key: giphyKey, q: query,
+      limit: 25, rating: 'pg-13', lang: 'en',
+    })
+    const res = await fetch(`https://api.giphy.com/v1/gifs/search?${p}`)
+    if (res.ok) {
+      const data = await res.json()
+      const pool = (data?.data ?? [])
+        .map(g => g?.images?.original?.url ?? g?.images?.fixed_height?.url)
+        .filter(Boolean)
+      if (pool.length) {
+        memSet(cacheKey, pool, 15 * 60 * 1000)
+        return { url: pool[Math.floor(Math.random() * pool.length)], query }
       }
-    } catch {}
-  }
+    }
+  } catch {}
 
-  if (pool?.length) {
-    return { url: pool[Math.floor(Math.random() * pool.length)], tag: query }
-  }
+  // ── 2. Tenor search fallback ──
+  const tenorKey = import.meta.env.VITE_TENOR_API_KEY ?? 'AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCyk'
+  try {
+    const p = new URLSearchParams({
+      q: query, limit: 25,
+      media_filter: 'minimal', contentfilter: 'medium', key: tenorKey,
+    })
+    const res = await fetch(`https://tenor.googleapis.com/v2/search?${p}`)
+    if (res.ok) {
+      const data = await res.json()
+      const pool = (data?.results ?? [])
+        .map(r => r?.media_formats?.gif?.url ?? r?.media_formats?.tinygif?.url)
+        .filter(Boolean)
+      if (pool.length) {
+        memSet(cacheKey, pool, 15 * 60 * 1000)
+        return { url: pool[Math.floor(Math.random() * pool.length)], query }
+      }
+    }
+  } catch {}
 
-  // Final fallback: curated pool
-  const url = MEDIA_POOL[Math.floor(Math.random() * MEDIA_POOL.length)]
-  return { url, tag: 'curated' }
+  return null
 }
 
 // ─────────────────────────────────────────────
