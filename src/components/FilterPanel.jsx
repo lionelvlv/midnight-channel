@@ -187,6 +187,7 @@ export function FilterPanel({ config, onApply, onClose }) {
     config.sourceWeights ?? VIDEO_SOURCES.map(s => ({ id: s.id, weight: s.defaultWeight, enabled: true }))
   )
   const [anomalyChance, setAnomalyChance] = useState(config.anomalyChance ?? 0.028)
+  const [excludeShorts, setExcludeShorts] = useState(config.excludeShorts ?? true)
 
   function addTag(list, setList, input, setInput) {
     const t = input.trim().toLowerCase().replace(/\s+/g, ' ')
@@ -220,7 +221,7 @@ export function FilterPanel({ config, onApply, onClose }) {
     if (preset.config.includeTags.length) searchOpts.includeTags = preset.config.includeTags
     if (preset.config.excludeTags.length) searchOpts.excludeTags = preset.config.excludeTags
     // Send the full sourceWeights state (including enabled flag) — TVInterface converts to active weights
-    onApply({ genreId: preset.config.genreId, genre: preset.seeds ? { seeds: preset.seeds } : genre, searchOpts, sourceWeights, anomalyChance })
+    onApply({ genreId: preset.config.genreId, genre: preset.seeds ? { seeds: preset.seeds } : genre, searchOpts, sourceWeights, anomalyChance, excludeShorts })
     onClose()
   }
 
@@ -236,7 +237,7 @@ export function FilterPanel({ config, onApply, onClose }) {
     if (includeTags.length) searchOpts.includeTags = includeTags
     if (excludeTags.length) searchOpts.excludeTags = excludeTags
     // Send the full sourceWeights state (including enabled flag) — TVInterface converts to active weights
-    onApply({ genreId, genre, searchOpts, sourceWeights, anomalyChance })
+    onApply({ genreId, genre, searchOpts, sourceWeights, anomalyChance, excludeShorts })
     onClose()
   }
 
@@ -303,6 +304,26 @@ export function FilterPanel({ config, onApply, onClose }) {
           {/* ── CUSTOM TAB ── */}
           {tab === 'custom' && (
             <>
+              {/* Shorts toggle */}
+              <div className="filter-section filter-section-toggle">
+                <label className="filter-toggle-row">
+                  <div className="filter-toggle-info">
+                    <span className="filter-section-label">HIDE YOUTUBE SHORTS</span>
+                    <span className="filter-hint-sub">Filter out videos under 4 minutes</span>
+                  </div>
+                  <button
+                    className={`filter-toggle-btn${excludeShorts ? ' active' : ''}`}
+                    onClick={() => setExcludeShorts(v => !v)}
+                    aria-label="Toggle shorts filter"
+                  >
+                    <span className="filter-toggle-track">
+                      <span className="filter-toggle-thumb" />
+                    </span>
+                    <span className="filter-toggle-label">{excludeShorts ? 'ON' : 'OFF'}</span>
+                  </button>
+                </label>
+              </div>
+
               {/* Genre */}
               <div className="filter-section">
                 <div className="filter-section-label">GENRE</div>
@@ -466,7 +487,7 @@ export function FilterPanel({ config, onApply, onClose }) {
                 setGenreId('any'); setYearEnabled(false)
                 setYearFrom(2000); setYearTo(MAX_YEAR)
                 setIncludeTags([]); setExcludeTags([])
-                setActivePreset(null); setAnomalyChance(0.028)
+                setActivePreset(null); setAnomalyChance(0.028); setExcludeShorts(true)
               }}>
                 RESET ALL
               </button>

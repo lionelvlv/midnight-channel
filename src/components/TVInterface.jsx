@@ -229,8 +229,9 @@ const DEFAULT_FILTER = {
   genreId: 'any', yearEnabled: false,
   yearFrom: 2000, yearTo: new Date().getFullYear(),
   includeTags: [], excludeTags: [],
+  excludeShorts: true,   // hide YouTube Shorts by default
   sourceWeights: null,
-  anomalyChance: 0.028,  // default 2.8% per flip
+  anomalyChance: 0.028,
 }
 
 // ═══════════════════════════════════════════════
@@ -265,6 +266,7 @@ export function TVInterface() {
   const staticCanvasRef = useRef(null)
   const grainCanvasRef  = useRef(null)
   const grainInterval   = useRef(null)
+  const touchStartRef   = useRef(null)   // { x, y } of touch start
   const switchingRef    = useRef(false)
   const sessionTimer    = useRef(null)
   const humStarted      = useRef(false)
@@ -354,14 +356,12 @@ export function TVInterface() {
       if (e.key === 'g' || e.key === 'G') {
         e.preventDefault()
         clearTimeout(anomalyTimer.current)
-        ;(async () => {
-          const data = await buildAnomalyData('live_broadcast')
-          setAnomalyData(data)
-          setScreenAnomaly('live_broadcast')
-          anomalyTimer.current = setTimeout(() => {
-            setScreenAnomaly(null); setAnomalyData(null)
-          }, 20000)
-        })()
+        setAnomalyData({ layout: 'loading' })
+        setScreenAnomaly('live_broadcast')
+        anomalyTimer.current = setTimeout(() => {
+          setScreenAnomaly(null); setAnomalyData(null)
+        }, 20000)
+        buildAnomalyData('live_broadcast').then(data => setAnomalyData(data)).catch(() => {})
       }
     }
     window.addEventListener('keydown', onKey)
@@ -436,6 +436,7 @@ export function TVInterface() {
       playsinline:     1,
       loop:            1,
       playlist:        vid,  // required for loop to work
+      origin:          window.location.origin,  // required for postMessage to work
     })
     return `https://www.youtube.com/embed/${vid}?${p}`
   }
@@ -483,6 +484,29 @@ export function TVInterface() {
   }
 
   // ── Fullscreen — zoom the TV, not the browser ────────────────────────────
+  // ── Swipe gestures ────────────────────────────────────────────────────────
+  function handleTouchStart(e) {
+    const t = e.touches[0]
+    touchStartRef.current = { x: t.clientX, y: t.clientY }
+    resetUiTimer()
+  }
+  function handleTouchEnd(e) {
+    if (!touchStartRef.current) return
+    const t = e.changedTouches[0]
+    const dx = t.clientX - touchStartRef.current.x
+    const dy = t.clientY - touchStartRef.current.y
+    touchStartRef.current = null
+    const adx = Math.abs(dx), ady = Math.abs(dy)
+    // Horizontal swipe → channel switch (min 45px, must be more horizontal than vertical)
+    if (adx > ady && adx > 45) {
+      handleSwitch(dx < 0 ? 'next' : 'prev')
+    }
+    // Vertical swipe → volume (min 30px, must be more vertical than horizontal)
+    else if (ady > adx && ady > 30) {
+      setVolume(v => Math.max(0, Math.min(100, Math.round(v + (dy < 0 ? 12 : -12)))))
+    }
+  }
+
   function handleFullscreen() {
     setIsFullscreen(v => !v)
   }
@@ -505,10 +529,10 @@ export function TVInterface() {
     setVideoSrc('')
     setOsd({ visible: true, channel: 'CH --', status: 'Searching…' })
     await new Promise(r => setTimeout(r, 65))
-    // Static burst: short (200-500ms) normally, longer only on static_heavy anomaly
+    // Static burst: short normally, use anomaly duration for static_heavy
     const staticDur = anom?.id === 'static_heavy'
-      ? Math.floor(Math.random() * 2000) + 800   // 800ms–2.8s for static_heavy
-      : Math.floor(Math.random() * 300) + 200     // 200–500ms for normal flips
+      ? (anom.duration ?? Math.floor(Math.random() * 5000) + 1000)
+      : Math.floor(Math.random() * 300) + 200
     await burstStatic(staticDur, variant)
 
     let result
@@ -518,35 +542,23 @@ export function TVInterface() {
 
     // ── Handle overlay anomalies ──
     if (anom && anom.type === 'overlay') {
-      const data = await buildAnomalyData(anom.id)
-
-      // Play appropriate sound
-      const vol = volumeRef.current
-      if (vol > 0) {
-        const soundMap = {
-          live_broadcast:    () => { const s=[playWhisperSound,playEerieSound,playGlitchSound]; setTimeout(() => s[Math.floor(Math.random()*s.length)](), 200) },
-          system_message:    () => setTimeout(() => playWhisperSound(), 200),
-          ascii_face:        () => setTimeout(() => playEerieSound(), 100),
-          eerie_gif:         () => setTimeout(() => playWhisperSound(), 500),
-          dead_frequency:    () => playEerieSound(),
-          memory_corruption: () => setTimeout(() => playGlitchSound(), 200),
-          color_bars_glitch: () => setTimeout(() => playToneSound(1000, 0.2, 0.12, 'square'), 100),
-          broadcast_warning: () => setTimeout(() => playToneSound(440, 0.15, 0.18, 'square'), 100),
-          countdown:         () => playEerieSound(),
-          morse_code:        () => setTimeout(() => playGlitchSound(), 100),
-          classified_footage:() => setTimeout(() => playWhisperSound(), 300),
-          lost_transmission: () => setTimeout(() => playEerieSound(), 200),
-          pixel_eyes:        () => setTimeout(() => playWhisperSound(), 400),
-          viewer_count:      () => setTimeout(() => playWhisperSound(), 100),
-          time_glitch:       () => setTimeout(() => playGlitchSound(), 150),
-          mirror_test:       () => setTimeout(() => playEerieSound(), 300),
-        }
-        soundMap[anom.id]?.()
-      }
-
-      setAnomalyData(data)
+      // Show overlay IMMEDIATELY with loading placeholder — no delay
+      const loadingData = { layout: 'loading' }
+      setAnomalyData(loadingData)
       setScreenAnomaly(anom.id)
       setOsd({ visible: false, channel: '', status: '' })
+
+      // Play sound right away
+      const vol = volumeRef.current
+      if (vol > 0) {
+        const s = [playWhisperSound, playEerieSound, playGlitchSound]
+        setTimeout(() => s[Math.floor(Math.random() * s.length)](), 200)
+      }
+
+      // Fetch content in background — swap in when ready
+      buildAnomalyData(anom.id).then(data => {
+        setAnomalyData(data)
+      }).catch(() => {})
 
       anomalyTimer.current = setTimeout(() => {
         setScreenAnomaly(null); setAnomalyData(null)
@@ -591,9 +603,16 @@ export function TVInterface() {
     return () => clearTimeout(t)
   }, [videoSrc])
 
-  useEffect(() => { handleSwitch('next') }, []) // eslint-disable-line
+  useEffect(() => {
+    // Apply default filter on mount (ensures excludeShorts is active from the start)
+    const d = DEFAULT_FILTER
+    const activeSearchOpts = { excludeShorts: d.excludeShorts }
+    if (d.excludeShorts) activeSearchOpts.excludeTags = ['#shorts', 'shorts']
+    setFilterConfig({ seeds: null, searchOpts: activeSearchOpts, sourceWeights: null })
+    handleSwitch('next')
+  }, []) // eslint-disable-line
 
-  function handleFilterApply({ genreId, genre, searchOpts, sourceWeights: sw, anomalyChance }) {
+  function handleFilterApply({ genreId, genre, searchOpts, sourceWeights: sw, anomalyChance, excludeShorts }) {
     const activeWeights = sw
       ? sw.map(s => ({ id: s.id, weight: (s.enabled !== false) ? s.weight : 0 }))
       : null
@@ -605,11 +624,19 @@ export function TVInterface() {
       yearTo:        searchOpts.publishedBefore ? parseInt(searchOpts.publishedBefore) : new Date().getFullYear(),
       includeTags:   searchOpts.includeTags  ?? [],
       excludeTags:   searchOpts.excludeTags  ?? [],
+      excludeShorts: excludeShorts ?? true,
       sourceWeights: sw ?? null,
       anomalyChance: anomalyChance ?? 0.028,
     }
     setFilterConfig_(newConfig)
-    setFilterConfig({ seeds: genre?.seeds ?? null, searchOpts, sourceWeights: activeWeights })
+    // Inject #shorts into excludeTags when enabled
+    const activeSearchOpts = { ...searchOpts }
+    if (excludeShorts) {
+      activeSearchOpts.excludeShorts = true
+      const exc = activeSearchOpts.excludeTags ?? []
+      if (!exc.includes('#shorts')) activeSearchOpts.excludeTags = [...exc, '#shorts', 'shorts']
+    }
+    setFilterConfig({ seeds: genre?.seeds ?? null, searchOpts: activeSearchOpts, sourceWeights: activeWeights })
     setLostChannel(null); setVideoSrc(''); setCurrentVideo(null)
     setTimeout(() => handleSwitch('next'), 50)
   }
@@ -622,6 +649,13 @@ export function TVInterface() {
       // ── LIVE BROADCAST — primary flexible event ───────────────────────────
       case 'live_broadcast': {
         const { layout, gif, ascii, quote } = d
+        if (!layout || layout === 'loading') {
+          return (
+            <div className="anomaly-overlay anomaly-live-broadcast">
+              <div className="lb-loading">▓▓░░▓▓░░▓▓</div>
+            </div>
+          )
+        }
         const hasGif   = gif?.url
         const hasAscii = ascii?.art
         const hasQuote = quote?.text
@@ -936,7 +970,11 @@ export function TVInterface() {
 
   return (
     <>
-      <div className={`room${sessionAge >= 10 ? ' room-deep' : ''}`}>
+      <div
+        className={`room${sessionAge >= 10 ? ' room-deep' : ''}`}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
         <div className={`room-glow${isSwitching ? ' dim' : ''}`} />
 
         <div className="tv-rig-wrapper">
@@ -1025,15 +1063,16 @@ export function TVInterface() {
               onFullscreen={handleFullscreen}
             />
             <div className="key-hint">
-              ← → or A/D &nbsp;·&nbsp; Space pause &nbsp;·&nbsp; F filter &nbsp;·&nbsp;·&nbsp; <span className="key-hint-tab">TAB</span> hide
+              ← → or A/D &nbsp;·&nbsp; Space pause &nbsp;·&nbsp; F filter &nbsp;·&nbsp; G gif debug &nbsp;·&nbsp; <span className="key-hint-tab">TAB</span> hide
             </div>
           </div>
         </div>
 
         <div className="nav-btns-mobile">
-          <GhostArrow direction="prev" onClick={() => handleSwitch('prev')} disabled={isSwitching} />
-          <GhostArrow direction="next" onClick={() => handleSwitch('next')} disabled={isSwitching} />
+          <GhostArrow direction="prev" onClick={() => handleSwitch('prev')} disabled={isSwitching} faded={!uiVisible} hidden={uiHidden} />
+          <GhostArrow direction="next" onClick={() => handleSwitch('next')} disabled={isSwitching} faded={!uiVisible} hidden={uiHidden} />
         </div>
+        <div className="swipe-hint">← swipe to change · ↕ swipe for volume</div>
       </div>
 
       {showFilter && (

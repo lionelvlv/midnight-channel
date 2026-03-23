@@ -493,15 +493,29 @@
   .ghost-btn.ghost-next { display: none; }
   .nav-btns-mobile {
     display: flex;
-    gap: 60px;
-    margin-top: 16px;
+    gap: 48px;
+    margin-top: 20px;
+    align-items: center;
   }
   .nav-btns-mobile .ghost-btn {
-    opacity: 0.45;
-    width: 52px; height: 60px;
+    opacity: 0.55;
+    width: 64px; height: 64px;
   }
+  /* Swipe hint shown on mobile instead of key hint */
   .key-hint { display: none; }
+  .swipe-hint {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 7px;
+    color: rgba(255,255,255,0.2);
+    letter-spacing: 1.5px;
+    text-align: center;
+    margin-top: 8px;
+  }
 }
+
+/* Swipe hint hidden on desktop */
+.swipe-hint { display: none; }
 
 /* ═══════════════════════════════════════════
    NEW ANOMALY OVERLAYS
@@ -1411,4 +1425,13 @@
   white-space: pre-line;
   font-style: italic;
   animation: ascii-flicker 7s step-end infinite;
+}
+
+/* Live broadcast loading pulse */
+.lb-loading {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  color: rgba(255,255,255,0.2);
+  letter-spacing: 4px;
+  animation: standby-blink 0.8s step-end infinite;
 }

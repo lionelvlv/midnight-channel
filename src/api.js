@@ -89,10 +89,11 @@ function getViteKeys() {
 }
 
 async function ytFetchWithKey(key, query, opts) {
-  const { order, publishedAfter, publishedBefore } = opts
+  const { order, publishedAfter, publishedBefore, excludeShorts } = opts
   const p = new URLSearchParams({ part: 'snippet', q: query, type: 'video', maxResults: 20, order, key })
   if (publishedAfter)  p.set('publishedAfter',  publishedAfter)
   if (publishedBefore) p.set('publishedBefore', publishedBefore)
+  if (excludeShorts)   p.set('videoDuration',   'medium')  // medium = 4-20min, excludes shorts
   const res  = await fetch(`${YT_URL}?${p}`)
   const data = await res.json()
   const reason = data?.error?.errors?.[0]?.reason
@@ -102,10 +103,11 @@ async function ytFetchWithKey(key, query, opts) {
 }
 
 async function ytFetchViaProd(query, opts) {
-  const { order, publishedAfter, publishedBefore } = opts
+  const { order, publishedAfter, publishedBefore, excludeShorts } = opts
   const p = new URLSearchParams({ q: query, order })
   if (publishedAfter)  p.set('publishedAfter',  publishedAfter)
   if (publishedBefore) p.set('publishedBefore', publishedBefore)
+  if (excludeShorts)   p.set('videoDuration',   'medium')
   const res = await fetch(`/api/search?${p}`)
   if (res.status === 429) return { exhausted: true }
   if (!res.ok) throw new Error(`Proxy ${res.status}`)
@@ -119,11 +121,17 @@ export async function ytSearch(query, opts = {}) {
   const order = opts.order ?? 'relevance'
   const after = opts.publishedAfter  ?? ''
   const before= opts.publishedBefore ?? ''
-  const cacheKey = `yt:${query}:${order}:${after}:${before}`
+  const noShorts = opts.excludeShorts ? '1' : '0'
+  const cacheKey = `yt:${query}:${order}:${after}:${before}:${noShorts}`
   const cached = cacheGet(cacheKey, YT_TTL)
   if (cached) return cached
   return dedupe(cacheKey, async () => {
-    const fullOpts = { order, publishedAfter: after || undefined, publishedBefore: before || undefined }
+    const fullOpts = {
+      order,
+      publishedAfter:  after  || undefined,
+      publishedBefore: before || undefined,
+      excludeShorts:   opts.excludeShorts ?? false,
+    }
     for (const key of getViteKeys()) {
       try {
         const r = await ytFetchWithKey(key, query, fullOpts)
@@ -427,30 +435,51 @@ export async function fetchGif() {
 }
 
 // ─────────────────────────────────────────────
-//  ASCII ART — from textart.io / artii API
+//  ASCII ART — generated locally, no network needed
 // ─────────────────────────────────────────────
-const ASCII_WORDS = [
-  'SIGNAL', 'WATCH', 'HELLO', 'ERROR', 'STATIC',
-  'NOISE', 'FOUND', 'LOST', 'WAIT', 'STAY',
-  'RUN', 'SLEEP', 'DREAM', 'DARK', 'WAKE',
+const ASCII_ART_POOL = [
+  { word: 'HELLO', art: `█  █ █▀▀ █   █   ▄▀▀
+█▀▀█ █▀▀ █   █   ▀▀▄
+█  █ █▄▄ █▄▄ █▄▄ ▄▄▀` },
+  { word: 'WATCH', art: `█ █ █ ▄▀▄ ▀█▀ ▀▀▀ █  █
+█▄█ █ █▀█  █  ▀▀▄ █▀▀█
+█ █ ▀ █ █  █  ▄▄▀ █  █` },
+  { word: 'SIGNAL', art: `▄▀▀ █ ▄▀▀ █▄  █ ▄▀▄ █
+▀▀▄ █ ▄▀▀ █ ▀█ █▀█ █
+▄▄▀ ▀ ▀▀▀ █  █ █ █ ▀▀▀` },
+  { word: 'STATIC', art: `▄▀▀ ▀█▀ ▄▀▄ ▀█▀ █ ▀▀▀
+▀▀▄  █  █▀█  █  █ ▀▀▄
+▄▄▀  █  █ █  █  ▀ ▄▄▀` },
+  { word: 'ERROR', art: `█▀▀ █▀█ █▀█ ▄▀▀ █▀█
+█▀▀ █▀▄ █▀▄ ▀▀▄ █▀▄
+█▄▄ █ █ █ █ ▄▄▀ █ █` },
+  { word: 'FOUND', art: `█▀▀ ▄▀▀ █ █ █▄  █ █▀▄
+█▀▀ ▀▀▄ █▄█ █ ▀█ █  █
+█   ▄▄▀ █ █ █  █ █▄▀` },
+  { word: 'LOST', art: `█   ▄▀▀ ▄▀▀ ▀█▀
+█   █ █ ▀▀▄  █
+█▄▄ ▀▀▀ ▄▄▀  █` },
+  { word: 'DREAM', art: `█▀▄ █▀█ █▀▀ ▄▀▄ █▄ ▄█
+█ █ █▀▄ █▀▀ █▀█ █▀▄▀█
+█▄▀ █ █ █▄▄ █ █ █   █` },
+  { word: 'SLEEP', art: `▄▀▀ █   █▀▀ █▀▀ █▀▄
+▀▀▄ █   █▀▀ █▀▀ █▀▄
+▄▄▀ █▄▄ █▄▄ █▄▄ █ █` },
+  { word: 'WAKE', art: `█ █ ▄▀▄ █ █ █▀▀
+█▄█ █▀█ █▀▄ █▀▀
+█ █ █ █ █ █ █▄▄` },
+  { word: 'NOISE', art: `█▄  █ ▄▀▀ █ ▄▀▀ █▀▀
+█ ▀█ █ █ █ ▀▀▄ █▀▀
+█  █ ▀ ▀▀▀ ▀ ▄▄▀ █▄▄` },
+  { word: 'DARK', art: `█▀▄ ▄▀▄ █▀█ █ █
+█ █ █▀█ █▀▄ █▀▄
+█▄▀ █ █ █ █ █ █` },
 ]
 
 export async function fetchAsciiArt() {
-  const word = ASCII_WORDS[Math.floor(Math.random() * ASCII_WORDS.length)]
-  const cacheKey = `ascii:${word}`
-  const cached   = memGet(cacheKey)
-  if (cached) return cached
-  try {
-    // artii.me — free ASCII art API, no key
-    const res  = await fetch(`https://artii.me/make?text=${encodeURIComponent(word)}&font=banner`)
-    if (!res.ok) throw new Error()
-    const text = await res.text()
-    if (text && text.trim().length > 5) {
-      memSet(cacheKey, { art: text, word }, 60 * 60 * 1000)
-      return { art: text, word }
-    }
-  } catch {}
-  return null
+  // Purely local — no network, instant, always works
+  const item = ASCII_ART_POOL[Math.floor(Math.random() * ASCII_ART_POOL.length)]
+  return { art: item.art, word: item.word }
 }
 
 // ─────────────────────────────────────────────
@@ -485,28 +514,20 @@ const CREEPY_QUOTES = [
 ]
 
 export async function fetchQuote() {
-  // 40% chance: use creepy local quote
-  if (Math.random() < 0.4) {
-    return { text: CREEPY_QUOTES[Math.floor(Math.random() * CREEPY_QUOTES.length)], source: 'static' }
+  // 70% local creepy quotes — instant, no network
+  if (Math.random() < 0.7) {
+    return { text: CREEPY_QUOTES[Math.floor(Math.random() * CREEPY_QUOTES.length)], source: null }
   }
-  // Try quotable.io for real quotes filtered to eerie/philosophical tags
-  const tags = ['mystery','philosophy','inspirational','wisdom','sad','fear','dark']
-  const tag  = tags[Math.floor(Math.random() * tags.length)]
+  // 30% try jokeapi for variety (funny/weird mix)
   try {
-    const res  = await fetch(`https://api.quotable.io/quotes/random?limit=1&tags=${tag}&maxLength=120`)
+    const res = await fetch(
+      'https://v2.jokeapi.dev/joke/Any?blacklistFlags=nsfw,religious,political,racist,sexist&type=single',
+      { signal: AbortSignal.timeout(3000) }
+    )
     if (res.ok) {
       const data = await res.json()
-      const q = data[0]
-      if (q?.content) return { text: q.content.toLowerCase(), source: q.author ?? 'unknown' }
+      if (data.joke) return { text: data.joke, source: null }
     }
   } catch {}
-  // Final fallback: jokeapi
-  try {
-    const res  = await fetch('https://v2.jokeapi.dev/joke/Any?blacklistFlags=nsfw,religious,political,racist,sexist&type=single')
-    if (res.ok) {
-      const data = await res.json()
-      if (data.joke) return { text: data.joke, source: 'unknown comedian' }
-    }
-  } catch {}
-  return { text: CREEPY_QUOTES[Math.floor(Math.random() * CREEPY_QUOTES.length)], source: 'static' }
+  return { text: CREEPY_QUOTES[Math.floor(Math.random() * CREEPY_QUOTES.length)], source: null }
 }

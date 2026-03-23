@@ -11,13 +11,14 @@ function getKeys() {
   return keys
 }
 
-async function searchWithKey(key, q, order, publishedAfter, publishedBefore) {
+async function searchWithKey(key, q, order, publishedAfter, publishedBefore, excludeShorts) {
   const params = new URLSearchParams({
     part: 'snippet', q, type: 'video', maxResults: 20,
     order: order || 'relevance', key,
   })
   if (publishedAfter)  params.set('publishedAfter',  publishedAfter)
   if (publishedBefore) params.set('publishedBefore', publishedBefore)
+  if (excludeShorts)   params.set('videoDuration',   'medium')
   const res  = await fetch(`${YT_SEARCH}?${params}`)
   const data = await res.json()
   return { status: res.status, data }
@@ -25,13 +26,14 @@ async function searchWithKey(key, q, order, publishedAfter, publishedBefore) {
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
-  const { q, order, publishedAfter, publishedBefore } = req.query
+  const { q, order, publishedAfter, publishedBefore, videoDuration } = req.query
   if (!q) return res.status(400).json({ error: 'Missing q' })
   const keys = getKeys()
   if (!keys.length) return res.status(500).json({ error: 'No API keys configured' })
+  const excludeShorts = videoDuration === 'medium' || req.query.excludeShorts === '1'
   for (let i = 0; i < keys.length; i++) {
     try {
-      const { status, data } = await searchWithKey(keys[i], q, order, publishedAfter, publishedBefore)
+      const { status, data } = await searchWithKey(keys[i], q, order, publishedAfter, publishedBefore, excludeShorts)
       if (status === 403 && data?.error?.errors?.[0]?.reason === 'quotaExceeded') { continue }
       if (!status.toString().startsWith('2')) return res.status(status).json(data)
       return res.status(200).json(data)
