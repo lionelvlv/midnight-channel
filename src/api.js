@@ -401,3 +401,61 @@ export async function fetchAsciiArt() {
   } catch {}
   return null
 }
+
+// ─────────────────────────────────────────────
+//  QUOTES — creepy, philosophical, funny mix
+// ─────────────────────────────────────────────
+const CREEPY_QUOTES = [
+  "what if you are the only real person and everyone else is a simulation?",
+  "you've been breathing manually since you read this.",
+  "at some point you said your own name so many times it stopped sounding real.",
+  "the human eye can detect a candle flame 48km away in the dark. something out there can see you.",
+  "every mirror you've ever looked in still holds your reflection somewhere.",
+  "you have never seen your own face. only photos and reflections.",
+  "your skeleton has been alive inside you your entire life.",
+  "the last song stuck in your head was put there by someone else.",
+  "right now, at this exact moment, something is watching a screen that is watching you.",
+  "you will never know if colors look the same to other people as they do to you.",
+  "when was the last time you checked under your bed?",
+  "somewhere, there is a file with your name on it.",
+  "you are the villain in someone else's story.",
+  "the version of you that other people see is not the version you think they see.",
+  "this is not the first time you have read something like this.",
+  "do you ever feel like you're being watched? that's because you are.",
+  "the average person walks past 36 murderers in their lifetime.",
+  "how do you know you're not already asleep?",
+  "you have forgotten more days of your life than you remember.",
+  "there are people who remember you who you have completely forgotten.",
+  "somewhere right now, someone is thinking about you for the last time.",
+  "you are made of atoms that were inside stars billions of years ago.",
+  "the noise you heard and dismissed was probably nothing. probably.",
+  "what if deja vu is a glitch and you've lived this exact moment before?",
+  "your body replaces itself entirely every 7 years. you are not who you were.",
+]
+
+export async function fetchQuote() {
+  // 40% chance: use creepy local quote
+  if (Math.random() < 0.4) {
+    return { text: CREEPY_QUOTES[Math.floor(Math.random() * CREEPY_QUOTES.length)], source: 'static' }
+  }
+  // Try quotable.io for real quotes filtered to eerie/philosophical tags
+  const tags = ['mystery','philosophy','inspirational','wisdom','sad','fear','dark']
+  const tag  = tags[Math.floor(Math.random() * tags.length)]
+  try {
+    const res  = await fetch(`https://api.quotable.io/quotes/random?limit=1&tags=${tag}&maxLength=120`)
+    if (res.ok) {
+      const data = await res.json()
+      const q = data[0]
+      if (q?.content) return { text: q.content.toLowerCase(), source: q.author ?? 'unknown' }
+    }
+  } catch {}
+  // Final fallback: jokeapi
+  try {
+    const res  = await fetch('https://v2.jokeapi.dev/joke/Any?blacklistFlags=nsfw,religious,political,racist,sexist&type=single')
+    if (res.ok) {
+      const data = await res.json()
+      if (data.joke) return { text: data.joke, source: 'unknown comedian' }
+    }
+  } catch {}
+  return { text: CREEPY_QUOTES[Math.floor(Math.random() * CREEPY_QUOTES.length)], source: 'static' }
+}

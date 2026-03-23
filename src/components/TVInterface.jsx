@@ -250,7 +250,6 @@ export function TVInterface() {
   const [screenAnomaly, setScreenAnomaly] = useState(null)
   const [anomalyData,   setAnomalyData]   = useState(null)
   const [volume,        setVolume]        = useState(80)
-  const [volumeFlash,   setVolumeFlash]   = useState(false)
   const [isPlaying,     setIsPlaying]     = useState(true)
   const [showFilter,    setShowFilter]    = useState(false)
   const [sessionAge,    setSessionAge]    = useState(0)
@@ -268,7 +267,6 @@ export function TVInterface() {
   const osdTimer        = useRef(null)
   const anomalyTimer    = useRef(null)
   const uiTimer         = useRef(null)
-  const volumeFlashTimer= useRef(null)
   const volumeRef       = useRef(volume)
   volumeRef.current = volume
 
@@ -440,14 +438,6 @@ export function TVInterface() {
   }
 
 
-  // ── Volume change → CRT flash effect ────────────────────────────────────
-  function handleVolumeChange(v) {
-    setVolume(v)
-    setVolumeFlash(true)
-    clearTimeout(volumeFlashTimer.current)
-    volumeFlashTimer.current = setTimeout(() => setVolumeFlash(false), 600)
-  }
-
   // ── Play / Pause ──────────────────────────────────────────────────────────
   function handlePlayPause() {
     const next = !isPlaying
@@ -475,20 +465,10 @@ export function TVInterface() {
     }
   }
 
-  // ── Fullscreen ────────────────────────────────────────────────────────────
+  // ── Fullscreen — zoom the TV, not the browser ────────────────────────────
   function handleFullscreen() {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen?.().catch(() => {})
-    } else {
-      document.exitFullscreen?.().catch(() => {})
-    }
+    setIsFullscreen(v => !v)
   }
-
-  useEffect(() => {
-    function onFsChange() { setIsFullscreen(!!document.fullscreenElement) }
-    document.addEventListener('fullscreenchange', onFsChange)
-    return () => document.removeEventListener('fullscreenchange', onFsChange)
-  }, [])
 
   const handleSwitch = useCallback(async (direction) => {
     if (switchingRef.current) return
@@ -508,7 +488,12 @@ export function TVInterface() {
     setVideoSrc('')
     setOsd({ visible: true, channel: 'CH --', status: 'Searching…' })
     await new Promise(r => setTimeout(r, 65))
-    await burstStatic(anom?.id==='static_heavy' ? 820 : 430, variant)
+    // Static burst duration: normally 300-600ms, occasionally dramatic (up to 10s)
+    const isLongStatic = anom?.id === 'static_heavy' || Math.random() < 0.08
+    const staticDur = isLongStatic
+      ? (anom?.id === 'static_heavy' ? 820 : Math.floor(Math.random() * 9000) + 1500)
+      : Math.floor(Math.random() * 300) + 300
+    await burstStatic(staticDur, variant)
 
     let result
     if (direction === 'next') result = await goNext()
@@ -523,6 +508,7 @@ export function TVInterface() {
       const vol = volumeRef.current
       if (vol > 0) {
         const soundMap = {
+          live_broadcast:    () => { const s=[playWhisperSound,playEerieSound,playGlitchSound]; setTimeout(() => s[Math.floor(Math.random()*s.length)](), 200) },
           system_message:    () => setTimeout(() => playWhisperSound(), 200),
           ascii_face:        () => setTimeout(() => playEerieSound(), 100),
           eerie_gif:         () => setTimeout(() => playWhisperSound(), 500),
@@ -536,12 +522,8 @@ export function TVInterface() {
           lost_transmission: () => setTimeout(() => playEerieSound(), 200),
           pixel_eyes:        () => setTimeout(() => playWhisperSound(), 400),
           viewer_count:      () => setTimeout(() => playWhisperSound(), 100),
-          late_night_joke:   () => setTimeout(() => playToneSound(220, 0.3, 0.08, 'sine'), 200),
-          cryptic_fact:      () => setTimeout(() => playWhisperSound(), 300),
-          weather_intercept: () => setTimeout(() => playGlitchSound(), 200),
-          number_transmission:() => setTimeout(() => playEerieSound(), 100),
           time_glitch:       () => setTimeout(() => playGlitchSound(), 150),
-          signal_decoded:    () => setTimeout(() => playToneSound(800, 0.4, 0.1, 'square'), 100),
+          mirror_test:       () => setTimeout(() => playEerieSound(), 300),
         }
         soundMap[anom.id]?.()
       }
@@ -620,6 +602,35 @@ export function TVInterface() {
   function renderScreenAnomaly() {
     const d = anomalyData ?? {}
     switch (screenAnomaly) {
+
+      // ── LIVE BROADCAST — primary flexible event ───────────────────────────
+      case 'live_broadcast': {
+        const { layout, gif, ascii, quote } = d
+        const hasGif   = gif?.url
+        const hasAscii = ascii?.art
+        const hasQuote = quote?.text
+        return (
+          <div className="anomaly-overlay anomaly-live-broadcast">
+            {(layout === 'gif_quote' || layout === 'gif_only' || layout === 'gif_ascii_quote') && hasGif && (
+              <img className="lb-gif" src={gif.url} alt="" />
+            )}
+            {(layout === 'ascii_quote' || layout === 'ascii_only' || layout === 'gif_ascii_quote') && hasAscii && (
+              <pre className="lb-ascii">{ascii.art}</pre>
+            )}
+            {(layout !== 'gif_only' && layout !== 'ascii_only') && hasQuote && (
+              <div className="lb-quote">
+                <span className="lb-quote-text">{quote.text}</span>
+                {quote.source && quote.source !== 'static' && (
+                  <span className="lb-quote-src">— {quote.source}</span>
+                )}
+              </div>
+            )}
+            {!hasGif && !hasAscii && !hasQuote && (
+              <div className="lb-quote"><span className="lb-quote-text">...</span></div>
+            )}
+          </div>
+        )
+      }
 
       // ── Classic ────────────────────────────────────────────────────────────
       case 'please_stand_by':
@@ -785,6 +796,7 @@ export function TVInterface() {
             <div className="vc-number">{n + 1}</div>
             <div className="vc-msg">{msgs[n] ?? msgs[0]}</div>
             <div className="vc-sub">THIS NUMBER SHOULD NOT BE VISIBLE</div>
+          {d.quote?.text && <div className="anomaly-live-quote">{d.quote.text}</div>}
           </div>
         )
       }
@@ -796,6 +808,7 @@ export function TVInterface() {
             <div className="morse-label">SIGNAL DECODED</div>
             <div className="morse-code">{m?.morse ?? '... --- ...'}</div>
             <div className="morse-reveal">{m?.decoded ?? '???'}</div>
+          {d.quote?.text && <div className="anomaly-live-quote">{d.quote.text}</div>}
           </div>
         )
       }
@@ -815,6 +828,7 @@ export function TVInterface() {
             <div className="ltx-divider">════════════════════</div>
             <div className="ltx-msg">{tx?.msg ?? '...'}</div>
             <div className="ltx-ts">{new Date().toISOString().slice(0,19).replace('T',' ')}</div>
+          {d.quote?.text && <div className="anomaly-live-quote">{d.quote.text}</div>}
           </div>
         )
       }
@@ -825,6 +839,7 @@ export function TVInterface() {
             <div className="cd-label">RESUMING IN</div>
             <CountdownDigit from={n} />
             <div className="cd-sub">DO NOT TOUCH THE DIAL</div>
+          {d.quote?.text && <div className="anomaly-live-quote">{d.quote.text}</div>}
           </div>
         )
       }
@@ -851,6 +866,7 @@ export function TVInterface() {
               <div key={i} className="class-line">{line}</div>
             ))}
             <div className="class-footer">UNAUTHORIZED VIEWING IS A FEDERAL OFFENSE</div>
+          {d.quote?.text && <div className="anomaly-live-quote">{d.quote.text}</div>}
           </div>
         )
       case 'time_glitch':
@@ -860,6 +876,7 @@ export function TVInterface() {
             <div className="tg-wrong">{d.wrong}</div>
             <div className="tg-note">{d.diff ?? 'time displaced'}</div>
             <div className="tg-right">ACTUAL: {d.right}</div>
+          {d.quote?.text && <div className="anomaly-live-quote">{d.quote.text}</div>}
           </div>
         )
       case 'pixel_eyes': {
@@ -876,6 +893,7 @@ export function TVInterface() {
               ))}
             </div>
             <div className="pxeye-msg">I SEE {(d.eyes ?? []).length} OF YOU</div>
+          {d.quote?.text && <div className="anomaly-live-quote">{d.quote.text}</div>}
           </div>
         )
       }
@@ -906,10 +924,10 @@ export function TVInterface() {
         <div className={`room-glow${isSwitching ? ' dim' : ''}`} />
 
         <div className="tv-rig-wrapper">
-          <div className="tv-rig">
+          <div className={`tv-rig${uiClass}`}>
             <GhostArrow direction="prev" onClick={() => handleSwitch('prev')} disabled={isSwitching} />
 
-            <div className="tv-body tv-body-3d">
+            <div className={`tv-body tv-body-3d${isFullscreen ? ' tv-body-zoomed' : ''}`}>
               <div className="tv-bezel">
                 <div className={`tv-screen${screenWarped ? ' crt-warped' : ''}`}>
 
@@ -946,7 +964,6 @@ export function TVInterface() {
                   <div className="crt-gloss"     />
                   <canvas ref={grainCanvasRef}  className="crt-grain"     />
                   <canvas ref={staticCanvasRef} className="static-canvas" />
-                  {volumeFlash && <div className="vol-flash" />}
 
                   <div className={`osd${osd.visible ? '' : ' hidden'}`}>
                     <span className="osd-channel">{osd.channel}</span>
@@ -983,7 +1000,7 @@ export function TVInterface() {
           <div className={`ui-fade-group${uiClass}`}>
             <ControlBar
               volume={volume}
-              onVolumeChange={handleVolumeChange}
+              onVolumeChange={setVolume}
               filterConfig={filterConfig}
               onFilterOpen={() => setShowFilter(true)}
               isPlaying={isPlaying}
