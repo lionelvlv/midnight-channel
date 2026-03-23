@@ -126,7 +126,7 @@ export function useChannel() {
   const seenIdsRef     = useRef(new Set())
   // Enabled source weights — can be changed by filter
   const sourceWeightsRef = useRef(
-    VIDEO_SOURCES.map(s => ({ id: s.id, weight: s.defaultWeight }))
+    VIDEO_SOURCES.map(s => ({ id: s.id, weight: s.defaultWeight, enabled: true }))
   )
 
   useEffect(() => { warmCache(DEFAULT_SEEDS.slice(0, 8)) }, [])

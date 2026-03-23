@@ -58,15 +58,15 @@
   cursor: pointer;
   position: relative;
   -webkit-tap-highlight-color: transparent;
-  opacity: 0.18;
+  opacity: 0.45;
   transition: opacity 0.25s ease, transform 0.12s ease;
   display: flex;
   align-items: center;
   justify-content: center;
 }
-.ghost-btn:hover  { opacity: 0.65; }
-.ghost-btn:active { transform: scale(0.92); opacity: 0.9; }
-.ghost-disabled   { opacity: 0.05 !important; cursor: default; pointer-events: none; }
+.ghost-btn:hover  { opacity: 0.85; }
+.ghost-btn:active { transform: scale(0.92); opacity: 1; }
+.ghost-disabled   { opacity: 0.08 !important; cursor: default; pointer-events: none; }
 
 .ghost-svg {
   width: 24px;
@@ -486,12 +486,12 @@
 .key-hint {
   font-family: var(--font-mono);
   font-size: 8px;
-  color: rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.3);
   letter-spacing: 1.5px;
   margin-top: 10px;
   text-align: center;
   transition: opacity 0.3s;
-  opacity: 0;
+  opacity: 0.7;            /* always visible, not hidden */
 }
 .tv-rig-wrapper:hover .key-hint { opacity: 1; }
 
@@ -754,10 +754,10 @@
    ═══════════════════════════════════════════ */
 .ui-fade-group {
   display: flex; flex-direction: column; align-items: center;
-  transition: opacity 1.8s ease;
+  transition: opacity 1.2s ease;
 }
 .ui-fade-group.ui-faded {
-  opacity: 0;
+  opacity: 0.15;           /* dim but never fully invisible */
   pointer-events: none;
 }
 .ui-fade-group.ui-force-hide {
@@ -1307,45 +1307,46 @@
   position: absolute;
   bottom: 10px;
   right: 10px;
-  z-index: 18;           /* above video, below static canvas */
-  background: none;
-  border: none;
-  padding: 4px 7px;
+  z-index: 18;
+  background: rgba(0,0,0,0.55);
+  border: 1px solid rgba(255,255,255,0.18);
+  padding: 5px 9px;
   cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.4s ease;
+  opacity: 0.35;           /* always somewhat visible */
+  transition: opacity 0.3s ease, border-color 0.2s, background 0.2s;
   display: flex;
   align-items: center;
   gap: 5px;
   -webkit-tap-highlight-color: transparent;
+  border-radius: 2px;
 }
-/* show when parent screen is hovered OR ui is active */
-.tv-screen:hover .copy-link-btn,
+.copy-link-btn:hover,
 .copy-link-btn.copy-visible {
   opacity: 1;
+  border-color: rgba(255,255,255,0.4);
+  background: rgba(0,0,0,0.75);
 }
-.copy-link-btn:hover .copy-icon,
-.copy-link-btn:hover .copy-label { opacity: 1; }
-
 .copy-icon {
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1;
-  opacity: 0.3;
+  opacity: 0.75;
   transition: opacity 0.15s;
-  filter: grayscale(1);
 }
 .copy-label {
   font-family: var(--font-mono);
-  font-size: 7px;
-  letter-spacing: 1.5px;
-  color: rgba(255,255,255,0.25);
-  opacity: 0.3;
-  transition: opacity 0.15s, color 0.15s;
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: rgba(255,255,255,0.65);
+  transition: color 0.15s;
   text-transform: uppercase;
 }
-.copy-link-btn.copy-done .copy-icon { opacity: 0.9; filter: none; }
+.copy-link-btn.copy-done {
+  border-color: rgba(0,224,64,0.5);
+  background: rgba(0,224,64,0.08);
+  opacity: 1;
+}
+.copy-link-btn.copy-done .copy-icon { opacity: 1; }
 .copy-link-btn.copy-done .copy-label {
   color: var(--green-osd);
-  opacity: 0.9;
   text-shadow: 0 0 6px rgba(0,224,64,0.4);
 }

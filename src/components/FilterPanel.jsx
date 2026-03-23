@@ -218,8 +218,8 @@ export function FilterPanel({ config, onApply, onClose }) {
     }
     if (preset.config.includeTags.length) searchOpts.includeTags = preset.config.includeTags
     if (preset.config.excludeTags.length) searchOpts.excludeTags = preset.config.excludeTags
-    const activeWeights = sourceWeights.map(s => ({ id: s.id, weight: s.enabled ? s.weight : 0 }))
-    onApply({ genreId: preset.config.genreId, genre: preset.seeds ? { seeds: preset.seeds } : genre, searchOpts, sourceWeights: activeWeights })
+    // Send the full sourceWeights state (including enabled flag) — TVInterface converts to active weights
+    onApply({ genreId: preset.config.genreId, genre: preset.seeds ? { seeds: preset.seeds } : genre, searchOpts, sourceWeights })
     onClose()
   }
 
@@ -234,8 +234,8 @@ export function FilterPanel({ config, onApply, onClose }) {
     }
     if (includeTags.length) searchOpts.includeTags = includeTags
     if (excludeTags.length) searchOpts.excludeTags = excludeTags
-    const activeWeights = sourceWeights.map(s => ({ id: s.id, weight: s.enabled ? s.weight : 0 }))
-    onApply({ genreId, genre, searchOpts, sourceWeights: activeWeights })
+    // Send the full sourceWeights state (including enabled flag) — TVInterface converts to active weights
+    onApply({ genreId, genre, searchOpts, sourceWeights })
     onClose()
   }
 

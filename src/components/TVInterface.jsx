@@ -625,12 +625,13 @@ export function TVInterface() {
 
   useEffect(() => { handleSwitch('next') }, []) // eslint-disable-line
 
-  function handleFilterApply({ genreId, genre, searchOpts, sourceWeights }) {
-    // sourceWeights from FilterPanel includes {id, weight, enabled} — store full objects
-    // Pass to useChannel as active weights (0 for disabled)
-    const activeWeights = sourceWeights
-      ? sourceWeights.map(s => ({ id: s.id, weight: s.enabled ? s.weight : 0 }))
+  function handleFilterApply({ genreId, genre, searchOpts, sourceWeights: sw }) {
+    // sw = [{id, weight, enabled}] from FilterPanel — contains the full enabled state
+    // Convert to active weights for useChannel (disabled sources get weight 0)
+    const activeWeights = sw
+      ? sw.map(s => ({ id: s.id, weight: (s.enabled !== false) ? s.weight : 0 }))
       : null
+
     const newConfig = {
       genreId,
       yearEnabled:   !!searchOpts.publishedAfter,
@@ -638,11 +639,10 @@ export function TVInterface() {
       yearTo:        searchOpts.publishedBefore ? parseInt(searchOpts.publishedBefore) : new Date().getFullYear(),
       includeTags:   searchOpts.includeTags  ?? [],
       excludeTags:   searchOpts.excludeTags  ?? [],
-      sourceWeights: sourceWeights ?? null,  // full {id,weight,enabled} for FilterPanel re-init
+      sourceWeights: sw ?? null,  // store full objects so panel re-opens with correct state
     }
     setFilterConfig_(newConfig)
     setFilterConfig({ seeds: genre?.seeds ?? null, searchOpts, sourceWeights: activeWeights })
-    // Clear any stuck lostChannel/dead-air screen immediately
     setLostChannel(null); setVideoSrc(''); setCurrentVideo(null)
     setTimeout(() => handleSwitch('next'), 50)
   }
@@ -1001,13 +1001,13 @@ export function TVInterface() {
 
                   {currentVideo && !isSwitching && (
                     <button
-                      className={`copy-link-btn${uiVisible && !uiHidden ? ' copy-visible' : ''}${copied ? ' copy-done' : ''}`}
+                      className={`copy-link-btn${copied ? ' copy-done' : ''}`}
                       onClick={handleCopyLink}
-                      title="Copy link (C)"
-                      aria-label="Copy original video link"
+                      title="Copy link to this video (C)"
+                      aria-label="Copy link"
                     >
-                      <span className="copy-icon">{copied ? '✓' : '⎘'}</span>
-                      <span className="copy-label">{copied ? 'copied' : 'copy'}</span>
+                      <span className="copy-icon">{copied ? '✓' : '🔗'}</span>
+                      <span className="copy-label">{copied ? 'COPIED!' : 'LINK'}</span>
                     </button>
                   )}
 
