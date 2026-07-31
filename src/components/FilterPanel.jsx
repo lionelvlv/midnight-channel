@@ -188,6 +188,8 @@ export function FilterPanel({ config, onApply, onClose }) {
   )
   const [anomalyChance, setAnomalyChance] = useState(config.anomalyChance ?? 0.028)
   const [excludeShorts, setExcludeShorts] = useState(config.excludeShorts ?? true)
+  const [muteStatic,    setMuteStatic]    = useState(config.muteStatic    ?? false)
+  const [muteHum,       setMuteHum]       = useState(config.muteHum       ?? false)
 
   function addTag(list, setList, input, setInput) {
     const t = input.trim().toLowerCase().replace(/\s+/g, ' ')
@@ -221,7 +223,7 @@ export function FilterPanel({ config, onApply, onClose }) {
     if (preset.config.includeTags.length) searchOpts.includeTags = preset.config.includeTags
     if (preset.config.excludeTags.length) searchOpts.excludeTags = preset.config.excludeTags
     // Send the full sourceWeights state (including enabled flag) — TVInterface converts to active weights
-    onApply({ genreId: preset.config.genreId, genre: preset.seeds ? { seeds: preset.seeds } : genre, searchOpts, sourceWeights, anomalyChance, excludeShorts })
+    onApply({ genreId: preset.config.genreId, genre: preset.seeds ? { seeds: preset.seeds } : genre, searchOpts, sourceWeights, anomalyChance, excludeShorts, muteStatic, muteHum })
     onClose()
   }
 
@@ -237,7 +239,7 @@ export function FilterPanel({ config, onApply, onClose }) {
     if (includeTags.length) searchOpts.includeTags = includeTags
     if (excludeTags.length) searchOpts.excludeTags = excludeTags
     // Send the full sourceWeights state (including enabled flag) — TVInterface converts to active weights
-    onApply({ genreId, genre, searchOpts, sourceWeights, anomalyChance, excludeShorts })
+    onApply({ genreId, genre, searchOpts, sourceWeights, anomalyChance, excludeShorts, muteStatic, muteHum })
     onClose()
   }
 
@@ -253,7 +255,8 @@ export function FilterPanel({ config, onApply, onClose }) {
 
   const isDefault = (
     genreId === 'any' && !yearEnabled &&
-    includeTags.length === 0 && excludeTags.length === 0
+    includeTags.length === 0 && excludeTags.length === 0 &&
+    !muteStatic && !muteHum
   )
 
   return (
@@ -320,6 +323,46 @@ export function FilterPanel({ config, onApply, onClose }) {
                       <span className="filter-toggle-thumb" />
                     </span>
                     <span className="filter-toggle-label">{excludeShorts ? 'ON' : 'OFF'}</span>
+                  </button>
+                </label>
+              </div>
+
+              {/* Mute static */}
+              <div className="filter-section filter-section-toggle">
+                <label className="filter-toggle-row">
+                  <div className="filter-toggle-info">
+                    <span className="filter-section-label">MUTE STATIC SOUND</span>
+                    <span className="filter-hint-sub">Silence the static burst sound during channel switches</span>
+                  </div>
+                  <button
+                    className={`filter-toggle-btn${muteStatic ? ' active' : ''}`}
+                    onClick={() => setMuteStatic(v => !v)}
+                    aria-label="Toggle static sound mute"
+                  >
+                    <span className="filter-toggle-track">
+                      <span className="filter-toggle-thumb" />
+                    </span>
+                    <span className="filter-toggle-label">{muteStatic ? 'ON' : 'OFF'}</span>
+                  </button>
+                </label>
+              </div>
+
+              {/* Mute background hum */}
+              <div className="filter-section filter-section-toggle">
+                <label className="filter-toggle-row">
+                  <div className="filter-toggle-info">
+                    <span className="filter-section-label">MUTE BACKGROUND NOISE</span>
+                    <span className="filter-hint-sub">Silence the ambient CRT hum that plays under the broadcast</span>
+                  </div>
+                  <button
+                    className={`filter-toggle-btn${muteHum ? ' active' : ''}`}
+                    onClick={() => setMuteHum(v => !v)}
+                    aria-label="Toggle background noise mute"
+                  >
+                    <span className="filter-toggle-track">
+                      <span className="filter-toggle-thumb" />
+                    </span>
+                    <span className="filter-toggle-label">{muteHum ? 'ON' : 'OFF'}</span>
                   </button>
                 </label>
               </div>
@@ -488,6 +531,7 @@ export function FilterPanel({ config, onApply, onClose }) {
                 setYearFrom(2000); setYearTo(MAX_YEAR)
                 setIncludeTags([]); setExcludeTags([])
                 setActivePreset(null); setAnomalyChance(0.028); setExcludeShorts(true)
+                setMuteStatic(false); setMuteHum(false)
               }}>
                 RESET ALL
               </button>

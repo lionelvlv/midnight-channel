@@ -351,6 +351,8 @@ const DEFAULT_FILTER = {
   excludeShorts: true,   // hide YouTube Shorts by default
   sourceWeights: null,
   anomalyChance: 0.028,
+  muteStatic: false,     // mute the static burst sound on channel switch
+  muteHum: false,        // mute the ambient CRT background hum
 }
 
 // ═══════════════════════════════════════════════
@@ -396,6 +398,10 @@ export function TVInterface() {
   const idleLongRef     = useRef(null)
   const volumeRef       = useRef(volume)
   volumeRef.current = volume
+  const muteStaticRef   = useRef(filterConfig.muteStatic)
+  muteStaticRef.current = filterConfig.muteStatic
+  const muteHumRef      = useRef(filterConfig.muteHum)
+  muteHumRef.current = filterConfig.muteHum
 
   // ── Canvas sync ──
   function syncSize(canvas) {
@@ -426,7 +432,7 @@ export function TVInterface() {
   // ── Session aging ──
   useEffect(() => {
     sessionTimer.current = setInterval(() => {
-      setSessionAge(a => { const n = a+1; if (n===5 && humStarted.current) setHumVolume(0.1); return n })
+      setSessionAge(a => { const n = a+1; if (n===5 && humStarted.current && volumeRef.current > 0 && !muteHumRef.current) setHumVolume(0.1); return n })
     }, 60_000)
     return () => clearInterval(sessionTimer.current)
   }, [])
@@ -435,8 +441,11 @@ export function TVInterface() {
   useEffect(() => {
     // YouTube / Archive / Dailymotion iframes (YouTube uses postMessage API)
     if (iframeRef.current) setIframeVolume(iframeRef.current, volume)
-    if (humStarted.current) setHumVolume(volume === 0 ? 0 : (sessionAge >= 5 ? 0.1 : 0.06))
-  }, [volume, sessionAge])
+    if (humStarted.current) {
+      const humOn = volume > 0 && !filterConfig.muteHum
+      setHumVolume(humOn ? (sessionAge >= 5 ? 0.1 : 0.06) : 0)
+    }
+  }, [volume, sessionAge, filterConfig.muteHum])
 
   // ── UI fade on inactivity ──
   function resetUiTimer() {
@@ -516,7 +525,7 @@ export function TVInterface() {
       if (!canvas) { setTimeout(resolve, durationMs); return }
       syncSize(canvas); canvas.style.opacity = '1'
       const ctx = canvas.getContext('2d'); const { width: w, height: h } = canvas
-      if (volumeRef.current > 0) playStaticSound(durationMs / 1000, 0.45)
+      if (volumeRef.current > 0 && !muteStaticRef.current) playStaticSound(durationMs / 1000, 0.45)
       const start = performance.now()
       function frame() {
         const prog = Math.min((performance.now()-start)/durationMs, 1)
@@ -664,7 +673,10 @@ export function TVInterface() {
     switchingRef.current = true; setIsSwitching(true)
     setIsPlaying(true)  // always resume on channel change
 
-    if (!humStarted.current) { humStarted.current = true; startHum(0.06) }
+    if (!humStarted.current) {
+      humStarted.current = true
+      startHum(muteHumRef.current || volumeRef.current === 0 ? 0 : 0.06)
+    }
 
     clearTimeout(anomalyTimer.current)
     setScreenAnomaly(null); setAnomalyData(null); setLostChannel(null); setCurrentVideo(null)
@@ -791,7 +803,7 @@ export function TVInterface() {
     handleSwitch('next')
   }, []) // eslint-disable-line
 
-  function handleFilterApply({ genreId, genre, searchOpts, sourceWeights: sw, anomalyChance, excludeShorts }) {
+  function handleFilterApply({ genreId, genre, searchOpts, sourceWeights: sw, anomalyChance, excludeShorts, muteStatic, muteHum }) {
     const activeWeights = sw
       ? sw.map(s => ({ id: s.id, weight: (s.enabled !== false) ? s.weight : 0 }))
       : null
@@ -806,6 +818,8 @@ export function TVInterface() {
       excludeShorts: excludeShorts ?? true,
       sourceWeights: sw ?? null,
       anomalyChance: anomalyChance ?? 0.028,
+      muteStatic:    muteStatic ?? false,
+      muteHum:       muteHum ?? false,
     }
     setFilterConfig_(newConfig)
     // Inject #shorts into excludeTags when enabled
@@ -1262,9 +1276,11 @@ export function TVInterface() {
                     title="Night Channel"
                     style={{ display: videoSrc ? 'block' : 'none' }}
                   />
-                  {/* Transparent overlay — blocks YT pointer events so their UI never shows */}
+                  {/* Transparent overlay — blocks YT pointer events so their UI never shows.
+                      Intentionally has no onClick: clicking the video itself should not
+                      change the channel (use the side arrows or swipe/keys instead). */}
                   {videoSrc && videoSource === 'youtube' && (
-                    <div className="yt-ui-blocker" onClick={() => handleSwitch('next')} />
+                    <div className="yt-ui-blocker" />
                   )}
 
                   {lostChannel && !videoSrc && renderLostChannel()}
