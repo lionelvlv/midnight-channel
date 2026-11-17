@@ -4,6 +4,7 @@ An atmospheric web application delivering curated ambient audio streams with a r
 
 ## Documentation
 - [Technical Specification](docs/SPEC.md)
+- [AI Disclosure](docs/AI_DISCLOSURE.md)
 
 ## Features
 - Immersive retro aesthetic and UI styling.
